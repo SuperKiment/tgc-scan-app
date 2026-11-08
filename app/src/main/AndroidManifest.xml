@@ -2,21 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- AC-3 / NFR-5: these three permissions and nothing else. -->
+    <!--
+      AC-3 / NFR-5: CAMERA, INTERNET and ACCESS_NETWORK_STATE are the only user-facing permissions.
+      androidx.core additionally contributes the app-private signature permission
+      org.tcgscan.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION, which must stay.
+    -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-    <!--
-      androidx.work (D3) merges WAKE_LOCK, RECEIVE_BOOT_COMPLETED and FOREGROUND_SERVICE into the
-      manifest. AC-3 allows none of the three and v1 schedules no Worker: pack download and install
-      are foreground, user-triggered operations (FR-23). They are therefore removed, exactly like
-      the ORT telemetry provider below. Introducing a background Worker means re-opening this
-      trade-off against AC-3 first.
-    -->
-    <uses-permission android:name="android.permission.WAKE_LOCK" tools:node="remove" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" tools:node="remove" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:node="remove" />
 
     <uses-feature
         android:name="android.hardware.camera.any"
@@ -28,6 +21,7 @@
     <application
         android:name=".TcgScanApp"
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
         android:fullBackupContent="false"
         android:label="@string/app_name"
         android:supportsRtl="false"
