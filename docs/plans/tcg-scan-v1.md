@@ -562,7 +562,7 @@ exit: `python3 -c "import yaml,sys;[yaml.safe_load(open(f)) for f in sys.argv[1:
   .github/workflows/packs.yml .github/workflows/release-apk.yml` exits 0; the upload step in packs.yml
   is guarded by `if: success()` and no job in either file runs a test task.
 
-### T30: FOSS and permission audit script  [todo]  (lite: yes)
+### T30: FOSS and permission audit script  [done]  (lite: yes)
 deps: T2
 files: tools/check-foss.sh
 do: Bash script, `set -euo pipefail`: run
