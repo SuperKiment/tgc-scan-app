@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Default locale = French (the UI language of v1). Every user-visible string lives here so the app
+  can be translated later without touching the composables.
+-->
+<resources>
+
+    <string name="app_name" translatable="false">TCG Scan</string>
+
+    <!-- Bottom navigation -->
+    <string name="nav_scan">Scanner</string>
+    <string name="nav_collection">Collection</string>
+    <string name="nav_catalog">Catalogue</string>
+    <string name="nav_lists">Listes</string>
+    <string name="nav_settings">Réglages</string>
+
+    <!-- Screen titles -->
+    <string name="screen_scan_title">Scanner</string>
+    <string name="screen_review_title">Revue du scan</string>
+    <string name="screen_collection_title">Ma collection</string>
+    <string name="screen_catalog_title">Catalogue</string>
+    <string name="screen_set_browse_title">Extension</string>
+    <string name="screen_card_detail_title">Fiche carte</string>
+    <string name="screen_lists_title">Listes</string>
+    <string name="screen_list_detail_title">Liste</string>
+    <string name="screen_settings_title">Réglages</string>
+    <string name="screen_about_title">À propos</string>
+    <string name="screen_backup_title">Sauvegarde</string>
+    <string name="screen_onboarding_title">Bienvenue</string>
+
+    <!-- Languages of the installable packs (D10) -->
+    <string name="lang_fr">Français</string>
+    <string name="lang_ja">Japonais</string>
+
+    <!-- System list created with the database (FR-16) -->
+    <string name="list_wishlist_name">Liste de souhaits</string>
+
+</resources>

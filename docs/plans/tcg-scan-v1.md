@@ -135,7 +135,7 @@ reference-device table to fill during the manual session.
 
 ## Tasks
 
-### T1: Bootstrap the Gradle build  [review]  (lite: no)
+### T1: Bootstrap the Gradle build  [done]  (lite: no)
 deps: -
 files: gradle/wrapper/gradle-wrapper.properties, gradle/wrapper/gradle-wrapper.jar, gradlew, gradlew.bat, settings.gradle.kts, build.gradle.kts, gradle.properties, gradle/libs.versions.toml, local.properties, .gitignore
 do: Generate the wrapper by running the already-unpacked distribution:
@@ -151,7 +151,7 @@ do: Generate the wrapper by running the already-unpacked distribution:
 exit: `./gradlew -q projects` prints `:app` (with the `app/` dir still empty this may be run after T2;
   run `./gradlew --version` here and it must report Gradle 8.14 / JVM 21).
 
-### T2: App module skeleton, manifest, theme, navigation stubs  [review]  (lite: no)
+### T2: App module skeleton, manifest, theme, navigation stubs  [done]  (lite: no)
 deps: T1
 files: app/build.gradle.kts, app/proguard-rules.pro, app/src/main/AndroidManifest.xml, app/src/main/java/org/tcgscan/app/TcgScanApp.kt, app/src/main/java/org/tcgscan/app/MainActivity.kt, app/src/main/java/org/tcgscan/app/AppConfig.kt, app/src/main/java/org/tcgscan/app/ui/Routes.kt, app/src/main/java/org/tcgscan/app/ui/TcgScanNavHost.kt, app/src/main/java/org/tcgscan/app/ui/theme/Theme.kt, app/src/main/res/values/strings.xml, app/src/main/res/values/themes.xml
 do: `com.android.application` + kotlin + ksp + compose + serialization plugins. namespace/applicationId
