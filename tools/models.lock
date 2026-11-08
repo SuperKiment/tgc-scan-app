@@ -1,0 +1,13 @@
+# Pinned ML model assets shipped in the APK (app/src/main/assets/models/).
+# Machine readable twin of docs/models.md - the two files must always agree.
+# Fetched and verified by tools/fetch_models.sh.
+#
+# Format: <asset-name> <sha256> <bytes> <url>
+# All assets are Apache-2.0; mirrors are listed in docs/models.md and printed on failure.
+
+embed_dinov2s_int8.onnx c179f8f7f592449c4c1bca4cd124a7538021428c5ffb89afde9503935b197efb 24446700 https://huggingface.co/onnx-community/dinov2-small/resolve/main/onnx/model_quantized.onnx
+ocr_det.onnx d2a7720d45a54257208b1e13e36a8479894cb74155a5efe29462512d42f49da9 4745517 https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/ch_PP-OCRv4_det_infer.onnx
+ocr_rec_latin.onnx 2bdd80b2a52fb2bb08b7407867eeb04fc8059b828dd46e500a9d48ba76ace9d8 8993434 https://huggingface.co/tobiichioriguchi/latin_PP-OCRv3_mobile_rec_onnx/resolve/main/inference.onnx
+ocr_rec_japan.onnx 2e397c27461751befc82eca78c9b19e87322ebee34e7316468b21856f9977d64 10089078 https://huggingface.co/tobiichioriguchi/japan_PP-OCRv3_mobile_rec_onnx/resolve/main/inference.onnx
+dict_latin.txt 8e6d4e3629788c35c31f7e530287d6147b549bb7a265bd6708bb281134429e2c 468 https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/release/2.7/ppocr/utils/dict/latin_dict.txt
+dict_japan.txt 1dcfcb41eec90576a945b3084f22ade11ced506e24f14879245b071698f308e8 17332 https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/release/2.7/ppocr/utils/dict/japan_dict.txt
