@@ -188,7 +188,7 @@ do: `LICENSE` = verbatim GPL-3.0 text. `README.md` = goal, build instructions (J
 exit: `grep -c "GNU GENERAL PUBLIC LICENSE" LICENSE` ≥ 1; docs/pack-format.md contains the full `CREATE TABLE`
   statements for `pack_meta`, `sets`, `cards`, `embeddings`, `ocr_tokens`.
 
-### T4: Room database: entities, DAOs, migrations  [doing]  (lite: no)
+### T4: Room database: entities, DAOs, migrations  [done]  (lite: no)
 deps: T2
 files: app/src/main/java/org/tcgscan/app/data/db/AppDatabase.kt, app/src/main/java/org/tcgscan/app/data/db/Entities.kt, app/src/main/java/org/tcgscan/app/data/db/OwnershipDao.kt, app/src/main/java/org/tcgscan/app/data/db/CardListDao.kt, app/src/main/java/org/tcgscan/app/data/db/ScanSessionDao.kt, app/src/main/java/org/tcgscan/app/data/db/DbProvider.kt
 do: Entities: `OwnedCard(lang, cardId, physicalLang, addedAt)` PK(lang,cardId);
@@ -217,7 +217,7 @@ do: `Http` builds one shared OkHttpClient (no cookie jar, 15 s timeouts, follow 
   (EC-2); it exposes `freeSpaceOk(required)` for EC-3.
 exit: `./gradlew assembleDebug` succeeds; `ManifestService` has no reference to any GitHub API host (only `github.com/.../releases/latest/download`).
 
-### T6: Fetch and lock the model assets  [doing]  (lite: no)
+### T6: Fetch and lock the model assets  [done]  (lite: no)
 deps: T2, T3
 files: tools/fetch_models.sh, tools/models.lock, app/src/main/assets/models/.gitkeep
 do: `tools/models.lock` lists the 5 assets of D7/D6 as `<asset-name> <sha256> <bytes> <url>` (values
@@ -229,7 +229,7 @@ exit: `bash tools/fetch_models.sh` exits 0 and `sha256sum -c` over tools/models.
   `embed_dinov2s_int8.onnx`, `ocr_det.onnx`, `ocr_rec_latin.onnx`, `ocr_rec_japan.onnx`, `dict_latin.txt`,
   `dict_japan.txt`; `./gradlew assembleDebug` still succeeds.
 
-### T7: Pack reader — catalogue queries and embedding index  [doing]  (lite: no)
+### T7: Pack reader — catalogue queries and embedding index  [done]  (lite: no)
 deps: T2, T3
 files: app/src/main/java/org/tcgscan/app/data/pack/PackPaths.kt, app/src/main/java/org/tcgscan/app/data/pack/PackCatalog.kt, app/src/main/java/org/tcgscan/app/data/pack/PackModels.kt, app/src/main/java/org/tcgscan/app/data/pack/EmbeddingIndex.kt, app/src/main/java/org/tcgscan/app/data/pack/InstalledPacksStore.kt
 do: `PackPaths` resolves `<filesDir>/packs/<lang>/pack.db` and the staging dir.
@@ -457,7 +457,7 @@ do: `BackupModels` = `@Serializable` envelope `{schemaVersion, exportedAt, owner
 exit: `./gradlew assembleDebug` succeeds; the importer parses fully and computes the summary before any
   write, and `BackupExporter` has no reference to the scan photo directory.
 
-### T23: Bounded image loading with fallbacks  [doing]  (lite: yes)
+### T23: Bounded image loading with fallbacks  [done]  (lite: yes)
 deps: T2
 files: app/src/main/java/org/tcgscan/app/ui/image/ImageLoaderProvider.kt, app/src/main/java/org/tcgscan/app/ui/image/CardImage.kt
 do: Build a Coil 2.7.0 `ImageLoader` with the shared OkHttpClient and a disk cache capped at
