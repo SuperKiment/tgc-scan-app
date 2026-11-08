@@ -173,7 +173,7 @@ do: `com.android.application` + kotlin + ksp + compose + serialization plugins. 
 exit: `./gradlew assembleDebug` succeeds and produces `app/build/outputs/apk/debug/app-arm64-v8a-debug.apk`
   and `app-armeabi-v7a-debug.apk`.
 
-### T3: Licence, README, format and model documentation  [todo]  (lite: no)
+### T3: Licence, README, format and model documentation  [done]  (lite: no)
 deps: -
 files: LICENSE, README.md, docs/pack-format.md, docs/models.md, docs/benchmark.md
 do: `LICENSE` = verbatim GPL-3.0 text. `README.md` = goal, build instructions (JDK 21, `local.properties`
@@ -468,7 +468,7 @@ do: Build a Coil 2.7.0 `ImageLoader` with the shared OkHttpClient and a disk cac
 exit: `./gradlew assembleDebug` succeeds; the composable has exactly three fallback branches and the
   loader sets an explicit `maxSizeBytes`.
 
-### T24: Pipeline scaffold and TCGdex client  [todo]  (lite: no)
+### T24: Pipeline scaffold and TCGdex client  [doing]  (lite: no)
 deps: T3
 files: pipeline/requirements.txt, pipeline/tcgscan_pipeline/__init__.py, pipeline/tcgscan_pipeline/config.py, pipeline/tcgscan_pipeline/tcgdex.py, pipeline/README.md
 do: `requirements.txt` pins `requests==2.32.*`, `numpy>=2.0`, `onnxruntime==1.31.1`,
