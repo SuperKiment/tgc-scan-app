@@ -1,0 +1,6 @@
+# Pack pipeline dependencies (see pipeline/README.md).
+# Pinned versions are the ones verified installable and used by .github/workflows/packs.yml.
+requests==2.32.*
+numpy>=2.0
+onnxruntime==1.31.1
+opencv-python-headless==4.12.0.88
