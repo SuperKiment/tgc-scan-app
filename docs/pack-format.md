@@ -180,7 +180,8 @@ Base URL `https://api.tcgdex.net/v2`, one language at a time (`fr`, `ja`).
 5. `cards.image_url` stores the TCGdex image *stem* as returned by the API; the concrete asset is
    `{image}/low.webp` (`high.webp` and `low.png` also exist). A card whose `image` field is absent
    gets `image_url = NULL` and `has_embed = 0`.
-6. Rate limiting (FR-21): minimum 150 ms between two requests, 5 retries with exponential backoff.
+6. Rate limiting (FR-21): minimum 150 ms between two requests, 5 attempts with exponential backoff
+   (the first try plus 4 retries, 1/2/4/8 s capped at 30 s).
 7. A body that fails `json.loads` — the measured intermittent `no available server` plain-text
    response — is treated as a **retryable** error, not as data. A final failure raises
    `TcgdexUnavailable`, which makes the release gate fail (§6).
@@ -219,6 +220,21 @@ canonical definition:
    single space, then trim.
 
 Japanese text keeps its kana and CJK code points: only marks and punctuation are removed.
+
+Two consequences of that rule for Japanese are **deliberate** and part of the contract — both
+implementations must reproduce them, and neither is a bug to be fixed:
+
+- step 2 removes the dakuten and handakuten along with every other combining mark, because NFD
+  decomposes `ガ` into `カ` + U+3099. `ガブリアス` therefore normalises to **`カフリアス`**, not to
+  `ガブリアス`. Voicing is simply ignored on both sides of the comparison, which costs nothing to a
+  `LIKE` search and keeps the device and the CI rule identical;
+- the decomposition is **NFD, not NFKD**, so compatibility forms are never folded: fullwidth Latin
+  and digits (`Ｄ`, `１`) stay distinct from `D` and `1` — being neither `[a-z0-9]` nor kana/CJK,
+  they are swallowed by step 4 — and halfwidth katakana (`ｶ`) stays its own code point instead of
+  folding to `カ`.
+
+Switching to NFKD would change `name_norm` for every affected card and break the device/CI
+equality, so it is a `pack_schema` matter, never a one-sided fix.
 
 A `LIKE '%' || :q || '%'` query over `name_norm`, with `q` normalised by the same rule, is the only
 name search path (no FTS5, §1).

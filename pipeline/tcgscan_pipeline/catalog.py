@@ -115,6 +115,16 @@ class CrawledSet:
 # --- crawl -----------------------------------------------------------------------------------
 
 
+def _is_excluded(series_id: str) -> bool:
+    """True when ``series_id`` names a series kept out of every pack (FR-20).
+
+    The comparison is case-insensitive: ``config.EXCLUDED_SERIES`` holds casefolded ids, while
+    TCGdex answers upper and mixed case ones for ``ja`` (``PMCG``, ``XYb``, ``SV``). An exclusion
+    that missed on case would let TCG Pocket into a pack.
+    """
+    return series_id.casefold() in config.EXCLUDED_SERIES
+
+
 def crawl(
     lang: str,
     *,
@@ -170,7 +180,7 @@ def _crawl(client: TcgdexClient, lang: str, max_sets: int | None) -> Iterator[Cr
     kept_series = [
         series_id
         for series_id in (_text(entry.get("id")) for entry in series if isinstance(entry, dict))
-        if series_id and series_id not in config.EXCLUDED_SERIES
+        if series_id and not _is_excluded(series_id)
     ]
     log.info(
         "%s: %d series, %d kept (excluded: %s)",
@@ -213,7 +223,7 @@ def _crawl(client: TcgdexClient, lang: str, max_sets: int | None) -> Iterator[Cr
                 continue
 
             crawled = _build_set(payload, fallback_series_id=series_id)
-            if crawled.set_row.series_id in config.EXCLUDED_SERIES:
+            if _is_excluded(crawled.set_row.series_id):
                 # Defence in depth: the set itself claims an excluded series (FR-20).
                 log.warning(
                     "%s: set %s belongs to excluded series %s; skipped",
@@ -346,9 +356,7 @@ def _main(argv: list[str] | None = None) -> int:
         log.error("%s", exc)
         return 1
 
-    offenders = sorted(
-        row.set_id for row in crawled_sets if row.series_id in config.EXCLUDED_SERIES
-    )
+    offenders = sorted(row.set_id for row in crawled_sets if _is_excluded(row.series_id))
     print(
         f"{args.lang}: {len(crawled_sets)} sets, {card_total} cards, {image_total} with a visual; "
         f"sets from an excluded series: {offenders or 'none'}"

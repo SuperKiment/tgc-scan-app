@@ -10,6 +10,12 @@ exponential backoff. A 404 is **tolerated** — the card simply has no visual, w
 builder turns into ``has_embed = 0`` (FR-3). A body that is not a WebP file (the intermittent
 plain-text ``no available server`` answer) is retried, never cached.
 
+``image_url`` comes verbatim from the TCGdex JSON and becomes the request target, so it is checked
+against an allow-list before any request: ``https`` only, host ``tcgdex.net`` or below. Redirects
+are **not** followed (the asset host answers 200 directly, measured) and the body is streamed under
+a byte budget, so a hostile or broken answer can neither move the request elsewhere nor fill the
+runner's disk.
+
 No image byte ever enters a pack: the cache only feeds the embedding stage.
 
 Dry-run one set:
@@ -23,22 +29,32 @@ import argparse
 import logging
 import os
 import re
+import stat
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
 from types import TracebackType
+from urllib.parse import urlsplit
 
 import requests
 
 from . import config
 from .catalog import CardRow, crawl_set
-from .tcgdex import TcgdexError, TcgdexUnavailable
+from .tcgdex import TcgdexError, TcgdexUnavailable, read_capped
 
 log = logging.getLogger(__name__)
 
 IMAGE_FILE_SUFFIX = ".webp"
 """Extension of a cached visual; matches ``config.IMAGE_SUFFIX``."""
+
+ASSET_HOST = "tcgdex.net"
+"""Only ``https://`` URLs on this host (or a subdomain of it) are ever requested."""
+
+MAX_IMAGE_BYTES = 4 * 1024 * 1024
+"""Byte budget of one visual. A ``low.webp`` measures ~16 kB, so this is ~250× the expected size;
+a body running past it is refused instead of being buffered."""
 
 _RETRYABLE_STATUS = frozenset({408, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524})
 
@@ -126,7 +142,8 @@ class ImageCache:
                 visual.
 
         Returns:
-            The cached file, or ``None`` when the card has no visual at all (missing stem or 404).
+            The cached file, or ``None`` when the card has no visual at all (missing stem, refused
+            URL, over-budget body or 404).
 
         Raises:
             TcgdexUnavailable: every attempt failed, or the asset answered a permanent error
@@ -136,33 +153,76 @@ class ImageCache:
             return None
 
         target = self.path_for(lang, card_id)
-        if target.is_file() and target.stat().st_size > 0:
+        if _is_cached(target):
             return target
 
         url = f"{image_url.rstrip('/')}{config.IMAGE_SUFFIX}"
+        if not _is_allowed_asset_url(url):
+            # The stem is API data: anything but an https tcgdex.net asset is never requested.
+            log.warning(
+                "%s: %s image url %r is not an https %s asset; card skipped",
+                lang,
+                card_id,
+                url,
+                ASSET_HOST,
+            )
+            return None
         last_reason = "no attempt was made"
 
         for attempt in range(1, self.max_retries + 1):
             self._throttle()
             try:
-                response = self._session.get(url, timeout=self.timeout_s)
+                with self._session.get(
+                    url, timeout=self.timeout_s, stream=True, allow_redirects=False
+                ) as response:
+                    status = response.status_code
+                    if status == 404:
+                        log.info(
+                            "%s: %s has no %s asset (404)", lang, card_id, config.IMAGE_SUFFIX
+                        )
+                        return None
+                    if status in _RETRYABLE_STATUS:
+                        last_reason = f"HTTP {status}"
+                    elif 300 <= status < 400:
+                        # Measured: the asset host answers 200 directly. A redirect would have to
+                        # be re-validated hop by hop, so it fails the run instead of being trusted.
+                        raise TcgdexUnavailable(
+                            f"GET {url} -> HTTP {status} to {response.headers.get('Location')!r}: "
+                            f"the asset host redirects; every hop must be validated against "
+                            f"{ASSET_HOST} before redirects are followed again"
+                        )
+                    elif not response.ok:
+                        raise TcgdexUnavailable(f"GET {url} -> HTTP {status}")
+                    else:
+                        declared = _declared_length(response)
+                        if declared is not None and declared > MAX_IMAGE_BYTES:
+                            log.warning(
+                                "%s: %s declares %d B, over the %d B visual budget; card skipped",
+                                lang,
+                                card_id,
+                                declared,
+                                MAX_IMAGE_BYTES,
+                            )
+                            return None
+                        payload = read_capped(response, MAX_IMAGE_BYTES)
+                        if len(payload) > MAX_IMAGE_BYTES:
+                            log.warning(
+                                "%s: %s runs past the %d B visual budget; card skipped",
+                                lang,
+                                card_id,
+                                MAX_IMAGE_BYTES,
+                            )
+                            return None
+                        if declared is not None and len(payload) != declared:
+                            last_reason = f"truncated body: {len(payload)} B of {declared} B"
+                        elif not _is_webp(payload):
+                            # Not an image: the measured « no available server » plain text.
+                            last_reason = f"body is not a WebP file ({len(payload)} B)"
+                        else:
+                            self._store(target, payload)
+                            return target
             except requests.RequestException as exc:
                 last_reason = f"request failed: {exc}"
-            else:
-                status = response.status_code
-                if status == 404:
-                    log.info("%s: %s has no %s asset (404)", lang, card_id, config.IMAGE_SUFFIX)
-                    return None
-                if status in _RETRYABLE_STATUS:
-                    last_reason = f"HTTP {status}"
-                elif not response.ok:
-                    raise TcgdexUnavailable(f"GET {url} -> HTTP {status}")
-                elif not _is_webp(response.content):
-                    # Not an image: the measured plain-text « no available server » answer.
-                    last_reason = f"body is not a WebP file ({len(response.content)} B)"
-                else:
-                    self._store(target, response.content)
-                    return target
 
             if attempt < self.max_retries:
                 delay = min(
@@ -196,16 +256,72 @@ class ImageCache:
             self._last_request_at = time.monotonic()
 
     def _store(self, target: Path, payload: bytes) -> None:
-        """Write ``payload`` to ``target`` through a temporary file, so a partial write is never
-        mistaken for a cached visual."""
+        """Write ``payload`` to ``target`` atomically, so a partial write is never mistaken for a
+        cached visual.
+
+        The temporary file is created by :func:`tempfile.mkstemp` *in the target directory* rather
+        than at a guessable ``<name>.part``: the cache tree is restored from ``actions/cache``, so
+        nothing under it is trusted to be what its name says. ``os.replace`` then swaps the real
+        file in — and, since it never follows symlinks, a symlink sitting at ``target`` is
+        replaced rather than written through.
+        """
         target.parent.mkdir(parents=True, exist_ok=True)
-        part = target.with_name(target.name + ".part")
+        handle, temp_name = tempfile.mkstemp(
+            dir=target.parent, prefix=f".{target.name}.", suffix=".part"
+        )
+        temp_path = Path(temp_name)
         try:
-            part.write_bytes(payload)
-            os.replace(part, target)
+            with os.fdopen(handle, "wb") as temp_file:
+                temp_file.write(payload)
+            # mkstemp creates the file private; a cached visual is world-readable as before.
+            os.chmod(temp_path, 0o644)
+            os.replace(temp_path, target)
         except OSError:
-            part.unlink(missing_ok=True)
+            temp_path.unlink(missing_ok=True)
             raise
+
+
+def _is_cached(target: Path) -> bool:
+    """True when ``target`` already holds a usable visual.
+
+    Only a non-empty **regular** file counts: the cache tree comes back from ``actions/cache``, so
+    a symlink there is treated as absent (and overwritten by :meth:`ImageCache._store`) instead of
+    being read through to wherever it points.
+    """
+    try:
+        info = target.lstat()
+    except OSError:
+        return False
+    return stat.S_ISREG(info.st_mode) and info.st_size > 0
+
+
+def _is_allowed_asset_url(url: str) -> bool:
+    """True for an ``https://`` URL whose host is ``tcgdex.net`` or a subdomain of it."""
+    try:
+        parts = urlsplit(url)
+        host = parts.hostname
+    except ValueError:
+        return False
+    if parts.scheme != "https" or not host:
+        return False
+    host = host.rstrip(".").casefold()
+    return host == ASSET_HOST or host.endswith(f".{ASSET_HOST}")
+
+
+def _declared_length(response: requests.Response) -> int | None:
+    """Return the ``Content-Length`` of ``response``, or ``None`` when it cannot be trusted.
+
+    An absent, malformed or negative value, and any transfer that arrives content-encoded (the
+    header then counts the encoded bytes, not the ones read), yield ``None``.
+    """
+    raw = response.headers.get("Content-Length")
+    if raw is None or response.headers.get("Content-Encoding"):
+        return None
+    try:
+        declared = int(raw)
+    except ValueError:
+        return None
+    return declared if declared >= 0 else None
 
 
 def _is_webp(payload: bytes) -> bool:

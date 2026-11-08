@@ -10,7 +10,7 @@ package only implements it.
 
 ## Install
 
-Python **3.12+** (CI uses 3.12; 3.14 works locally).
+Python **3.12+** (CI uses 3.12; on 3.14, numpy 2.2.6 has no wheel and pip compiles it from source).
 
 ```bash
 python3 -m pip install -r pipeline/requirements.txt
@@ -24,7 +24,8 @@ bash tools/fetch_models.sh
 
 ## Run
 
-All commands are run from the repository root with `pipeline/` on the import path, e.g.:
+All commands below are run from `pipeline/` — not from the repository root — since that is where
+the `tcgscan_pipeline` package is importable, e.g.:
 
 ```bash
 cd pipeline
