@@ -1,5 +1,6 @@
 # Gradle / Android build output
 .gradle/
+.kotlin/
 build/
 **/build/
 captures/
@@ -25,10 +26,16 @@ __pycache__/
 *.pyc
 .venv/
 
-# Generated pipeline output and downloaded model weights
+# Generated pipeline output and caches
 pipeline/out/
 pipeline/cache/
+pipeline/.cache/
+dist/
 *.onnx.tmp
+
+# ML model assets: fetched by tools/fetch_models.sh and pinned by tools/models.lock (~48 MB)
+app/src/main/assets/models/*
+!app/src/main/assets/models/.gitkeep
 
 # OS
 .DS_Store
