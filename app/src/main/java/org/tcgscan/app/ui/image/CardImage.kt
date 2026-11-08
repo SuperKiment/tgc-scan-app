@@ -24,6 +24,10 @@ import java.io.File
  * 2. the local scan photo at [scanPhotoPath],
  * 3. a text-only card showing [name] and [localId].
  *
+ * [imageUrl] is pack data, i.e. untrusted, and Coil resolves a `String` model as a `Uri` — a
+ * `file://` or `content://` stem would make this composable read local or foreign-app data. Only a
+ * [TCGDEX_ASSET_PREFIX] stem is ever requested; anything else falls through to the scan photo.
+ *
  * [lang] and [cardId] identify the card for callers; they do not alter the request.
  */
 @Composable
@@ -37,31 +41,38 @@ fun CardImage(
     modifier: Modifier = Modifier,
 ) {
     val box = modifier.aspectRatio(CARD_RATIO)
-    val textOnly: @Composable () -> Unit = { TextCard(name, localId, box) }
+    val stem = imageUrl?.takeIf { it.startsWith(TCGDEX_ASSET_PREFIX) }
 
-    val scanPhoto: @Composable () -> Unit = {
-        if (scanPhotoPath.isNullOrBlank()) {
-            textOnly()
-        } else {
-            SubcomposeAsyncImage(
-                model = File(scanPhotoPath),
-                contentDescription = name,
-                modifier = box,
-                contentScale = ContentScale.Crop,
-                error = { textOnly() },
-            )
-        }
-    }
-
-    if (imageUrl.isNullOrBlank()) {
-        scanPhoto()
+    if (stem == null) {
+        ScanPhoto(scanPhotoPath, name, localId, box)
     } else {
         SubcomposeAsyncImage(
-            model = "$imageUrl/low.webp",
+            model = "$stem/low.webp",
             contentDescription = name,
             modifier = box,
             contentScale = ContentScale.Fit,
-            error = { scanPhoto() },
+            // Inside the error slot the box modifier is already applied by this very image.
+            error = { ScanPhoto(scanPhotoPath, name, localId, Modifier.fillMaxSize()) },
+        )
+    }
+}
+
+@Composable
+private fun ScanPhoto(
+    scanPhotoPath: String?,
+    name: String,
+    localId: String,
+    modifier: Modifier,
+) {
+    if (scanPhotoPath.isNullOrBlank()) {
+        TextCard(name, localId, modifier)
+    } else {
+        SubcomposeAsyncImage(
+            model = File(scanPhotoPath),
+            contentDescription = name,
+            modifier = modifier,
+            contentScale = ContentScale.Crop,
+            error = { TextCard(name, localId, Modifier.fillMaxSize()) },
         )
     }
 }
@@ -95,3 +106,10 @@ private fun TextCard(name: String, localId: String, modifier: Modifier) {
 }
 
 private const val CARD_RATIO = 63f / 88f
+
+/**
+ * The only origin a card visual may be loaded from: the TCGdex asset CDN, over https. Stems come
+ * from `cards.image_url` (`docs/pack-format.md` §4.5) and are matched against this prefix, never
+ * merely parsed, so no other scheme or host can reach the image loader.
+ */
+private const val TCGDEX_ASSET_PREFIX = "https://assets.tcgdex.net/"

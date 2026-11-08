@@ -19,7 +19,14 @@ interface OwnershipDao {
     @Query("SELECT * FROM owned_cards WHERE lang = :lang ORDER BY added_at DESC")
     fun observeByLang(lang: String): Flow<List<OwnedCard>>
 
-    /** Owned ids among [cardIds], i.e. the « possédée » badges of one set page (FR-14). */
+    /**
+     * Owned ids among [cardIds], i.e. the « possédée » badges of one set page (FR-14).
+     *
+     * [cardIds] accepts **at most 900 ids per call**: Room expands the `IN` clause into one bound
+     * parameter per id, and `SQLITE_MAX_VARIABLE_NUMBER` is 999 in the SQLite of API 26 (plus the
+     * `lang` parameter). A caller with more ids — no Pokémon set is that large, but a merged view
+     * could be — must chunk them and merge the results.
+     */
     @Query("SELECT card_id FROM owned_cards WHERE lang = :lang AND card_id IN (:cardIds)")
     fun observeOwnedIdsIn(lang: String, cardIds: Collection<String>): Flow<List<String>>
 

@@ -4,6 +4,7 @@ import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteException
+import android.util.Log
 import java.io.Closeable
 import java.io.File
 
@@ -36,9 +37,16 @@ class PackCatalog private constructor(
         return PackMeta.from(values)
     }
 
-    /** Every set of the pack, grouped by series then ordered by release date (newest first). */
+    /**
+     * Every set of the pack, grouped by series then ordered by release date (newest first). Sets
+     * without a `release_date` come last inside their series instead of first, which is what
+     * `DESC` alone would do with SQLite's NULL ordering.
+     */
     fun sets(): List<PackSet> = db.rawQuery(
-        "SELECT $SET_COLUMNS FROM $TABLE_SETS ORDER BY series_id, release_date DESC, name",
+        """
+        SELECT $SET_COLUMNS FROM $TABLE_SETS
+        ORDER BY series_id, release_date IS NULL, release_date DESC, name
+        """.trimIndent(),
         null,
     ).use { it.mapAll(::readSet) }
 
@@ -80,8 +88,12 @@ class PackCatalog private constructor(
     }
 
     /**
-     * Number search for the OCR path: matches `cards.local_id` and every `ocr_tokens.token`, so
-     * « 136 », « 136/201 », « SV043 » and a set id all resolve (docs §2.3 and §5).
+     * Number search for the OCR path: matches every `ocr_tokens.token`, so « 136 », « 136/201 »,
+     * « SV043 » and a set id all resolve (docs §2.3 and §5).
+     *
+     * `cards.local_id` is deliberately *not* matched directly: `ocr_tokens` already holds the bare
+     * lowercased `local_id` of every card (docs §2.3), and a `LOWER(local_id) = ?` branch would
+     * only add a full table scan — `LOWER()` makes `idx_cards_local_id` unusable.
      */
     fun searchByNumber(localId: String, limit: Int = DEFAULT_NUMBER_LIMIT): List<PackCard> {
         val token = localId.trim().lowercase()
@@ -89,12 +101,11 @@ class PackCatalog private constructor(
         return db.rawQuery(
             """
             SELECT $CARD_COLUMNS FROM $TABLE_CARDS
-            WHERE LOWER(local_id) = ?
-               OR card_id IN (SELECT card_id FROM $TABLE_TOKENS WHERE token = ?)
+            WHERE card_id IN (SELECT card_id FROM $TABLE_TOKENS WHERE token = ?)
             ORDER BY set_id, CAST(local_id AS INTEGER), local_id
             LIMIT ?
             """.trimIndent(),
-            arrayOf(token, token, limit.toString()),
+            arrayOf(token, limit.toString()),
         ).use { it.mapAll(::readCard) }
     }
 
@@ -193,6 +204,8 @@ class PackCatalog private constructor(
 
     companion object {
 
+        private const val TAG = "PackCatalog"
+
         private const val TABLE_META = "pack_meta"
         private const val TABLE_SETS = "sets"
         private const val TABLE_CARDS = "cards"
@@ -217,10 +230,20 @@ class PackCatalog private constructor(
         /**
          * Opens the installed pack of [lang], or returns `null` when no pack is installed (EC-1) or
          * when the file is not a readable pack.
+         *
+         * A corrupt pack is still a `null` — callers treat « pas de pack » and « pack illisible »
+         * the same way — but it is logged, because a silent `null` makes a broken `pack.db`
+         * impossible to diagnose from a bug report.
          */
         fun open(context: Context, lang: String): PackCatalog? {
             val file = PackPaths.packDb(context, lang)
-            return if (file.isFile) runCatching { open(file, lang) }.getOrNull() else null
+            if (!file.isFile) return null
+            return try {
+                open(file, lang)
+            } catch (e: PackFormatException) {
+                Log.w(TAG, "Pack $lang at ${file.absolutePath} is not readable", e)
+                null
+            }
         }
 
         /**

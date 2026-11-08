@@ -36,7 +36,8 @@ log() {
 print_mirrors() {
   cat >&2 <<'EOF'
 
-Mirrors (same files, same Apache-2.0 licence) if an upstream repository vanished - update
+Mirrors if an upstream repository vanished - same model and licence (Apache-2.0) but NOT the same
+bytes (see docs/models.md section 2.1), so the sha256 and byte count have to be re-pinned: update
 tools/models.lock AND docs/models.md together, never only one of them:
   embed_dinov2s_int8.onnx : Xenova/dinov2-small           -> onnx/model_quantized.onnx
   ocr_rec_latin.onnx      : itextresearch/itext-latin_PP-OCRv3_mobile_rec_infer -> inference.onnx
@@ -82,7 +83,9 @@ fetched=0
 skipped=0
 total=0
 
-while read -r name sha bytes url extra; do
+# `|| [[ -n "${name}" ]]`: read returns non-zero on a last line without a trailing newline, but it
+# has still filled the variables - without this the final lock entry would be skipped silently.
+while read -r name sha bytes url extra || [[ -n "${name}" ]]; do
   # Skip blank lines and comments.
   [[ -z "${name}" || "${name}" == '#'* ]] && continue
   [[ -n "${sha}" && -n "${bytes}" && -n "${url}" && -z "${extra}" ]] ||

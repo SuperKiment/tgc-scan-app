@@ -29,11 +29,26 @@ object PackPaths {
     /** Leading dot: no TCGdex language code can collide with the staging directory. */
     private const val STAGING_DIR_NAME = ".staging"
 
-    private val LANG_PATTERN = Regex("[a-z]{2,8}")
-    private val ARCHIVE_NAME_PATTERN = Regex("[A-Za-z0-9._-]{1,64}")
+    private val LANG_PATTERN = Regex("[a-z]{2,3}")
 
-    /** True for a plausible TCGdex language code (`fr`, `ja` — D10). */
+    /** Leading character is alphanumeric, which also rejects `.`, `..` and a leading `-`. */
+    private val ARCHIVE_NAME_PATTERN = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+
+    /**
+     * True for a plausible TCGdex language code (`fr`, `ja` — D10).
+     *
+     * This is *the* rule for both layers: `PackManifest.validationError` rejects a manifest whose
+     * keys do not pass it, so a manifest accepted at the network boundary can never make
+     * [packDir] throw.
+     */
     fun isValidLang(lang: String): Boolean = LANG_PATTERN.matches(lang)
+
+    /**
+     * True for a usable `manifest.packs[].file`: a plain file name, no separator, no traversal, no
+     * surprise length. Same rule on both sides — see [isValidLang] and [stagingFile].
+     */
+    fun isValidArchiveName(archiveName: String): Boolean =
+        ARCHIVE_NAME_PATTERN.matches(archiveName)
 
     /** Root of every installed pack. */
     fun packsRoot(context: Context): File = File(context.filesDir, PACKS_DIR_NAME)
@@ -62,13 +77,12 @@ object PackPaths {
     /**
      * Staging path for the release asset [archiveName] (`manifest.packs[].file`, docs §6).
      *
-     * The name comes from a downloaded manifest, so it is validated here rather than trusted: no
-     * separators, no `..`, no surprise length.
+     * The name comes from a downloaded manifest, so it is validated here rather than trusted — with
+     * [isValidArchiveName], the very check the network boundary applied, so a manifest that passed
+     * `PackManifest.validationError` never lands here as an [IllegalArgumentException].
      */
     fun stagingFile(context: Context, archiveName: String): File {
-        require(ARCHIVE_NAME_PATTERN.matches(archiveName) && archiveName != "." && archiveName != "..") {
-            "Invalid pack archive name: $archiveName"
-        }
+        require(isValidArchiveName(archiveName)) { "Invalid pack archive name: $archiveName" }
         return File(stagingDir(context), archiveName)
     }
 

@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import java.nio.ByteBuffer
 import kotlin.math.roundToInt
+import org.tcgscan.app.scan.Embedder
+import org.tcgscan.app.scan.ModelAsset
 
 /**
  * The visual index of one pack: every `embeddings.vec` of the pack in a single direct
@@ -107,9 +109,27 @@ class EmbeddingIndex private constructor(
             PackCatalog.open(context, lang)?.use { load(it) }
 
         /**
+         * int8 components per vector, i.e. the CLS width of the bundled
+         * [ModelAsset.EMBED_DINOV2S_INT8] (`docs/pack-format.md` §3.2). A pack announcing any other
+         * `embed_dim` is refused by [load]: its vectors cannot be compared with the on-device ones
+         * anyway (see [PackMeta.matchesEmbedModel]), and `embed_dim` is pack-controlled arithmetic.
+         */
+        const val EXPECTED_DIM = Embedder.DIM
+
+        /**
+         * Ceiling on the resident index. ~17 k French vectors ≈ 6.6 MB (D9), so this is an order of
+         * magnitude of headroom; it exists to bound a pack that claims an absurd row count.
+         */
+        const val MAX_INDEX_BYTES = 64L * 1024 * 1024
+
+        /**
          * Loads the index from an already open [catalog]. Rows whose blob is not exactly
          * `embed_dim` bytes are skipped rather than trusted — a malformed pack degrades the visual
          * match, it never corrupts the buffer.
+         *
+         * @throws PackFormatException when `pack_schema` is too new, when `embed_dim` is not
+         *   [EXPECTED_DIM], when the index would exceed [MAX_INDEX_BYTES], or when the buffer
+         *   cannot be allocated.
          */
         fun load(catalog: PackCatalog): EmbeddingIndex {
             val meta = catalog.meta()
@@ -119,10 +139,34 @@ class EmbeddingIndex private constructor(
                 )
             }
             val dim = meta.embedDim
-            if (dim <= 0) throw PackFormatException("pack_meta.embed_dim is $dim")
+            if (dim != EXPECTED_DIM) {
+                throw PackFormatException(
+                    "Pack ${meta.lang} has embed_dim $dim; this build only reads $EXPECTED_DIM-dim " +
+                        "vectors of ${ModelAsset.EMBED_DINOV2S_INT8.fileName}",
+                )
+            }
 
             val expectedRows = catalog.embeddingCount()
-            val buffer = ByteBuffer.allocateDirect(expectedRows * dim)
+            if (expectedRows < 0) {
+                throw PackFormatException("Pack ${meta.lang} reports $expectedRows embedding rows")
+            }
+            // Long on purpose: both factors come from the pack, and Int would wrap into a buffer
+            // far too small for the rows that follow.
+            val totalBytes = expectedRows.toLong() * dim.toLong()
+            if (totalBytes > MAX_INDEX_BYTES) {
+                throw PackFormatException(
+                    "Pack ${meta.lang} index would need $totalBytes B " +
+                        "($expectedRows rows × $dim), over the $MAX_INDEX_BYTES B ceiling",
+                )
+            }
+            val buffer = try {
+                ByteBuffer.allocateDirect(totalBytes.toInt())
+            } catch (e: OutOfMemoryError) {
+                throw PackFormatException(
+                    "Cannot allocate $totalBytes B for the index of ${meta.lang}",
+                    e,
+                )
+            }
             val ids = arrayOfNulls<String>(expectedRows)
             var rows = 0
             var skipped = 0
