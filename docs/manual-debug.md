@@ -7,16 +7,15 @@ accuracy and latency go into [benchmark.md](benchmark.md).
 
 The UI is in French; button names below are the labels shown on screen.
 
-## 0. Before anything else: set `AppConfig.GITHUB_REPO`
+## 0. Before anything else: check `AppConfig.GITHUB_REPO`
 
-`app/src/main/java/org/tcgscan/app/AppConfig.kt` ships `GITHUB_REPO = "CHANGE-ME-OWNER/tcg-scan-app"`,
-a placeholder. While it is unchanged:
+`app/src/main/java/org/tcgscan/app/AppConfig.kt` sets `GITHUB_REPO = "SuperKiment/tgc-scan-app"`. A fork
+must change it to its own `owner/repo` and rebuild.
 
-- no manifest and no pack can be downloaded (Settings and the About screen show a warning);
-- onboarding cannot download a pack, only « Continuer sans pack » works.
-
-Replace it with the real `owner/repo` of the GitHub repository that publishes the packs, rebuild, and
-make sure at least one `packs-<date>` release exists (see section 2) before testing AC-11 to AC-17.
+Download-based criteria (AC-11 to AC-17) also need at least one `packs-<date>` release marked latest on
+that repository. If none exists, create it first: GitHub > Actions > `packs` > Run workflow (see
+section 2). Without a release, the manifest download fails and only « Continuer sans pack » works in
+onboarding.
 
 ## 1. Build and install the APK
 

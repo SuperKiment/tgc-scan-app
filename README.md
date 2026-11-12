@@ -12,15 +12,12 @@ in the review screen.
 The UI is in French. Distribution is **GitHub Releases only** (no Play Store, no F-Droid in v1).
 
 > [!IMPORTANT]
-> **Set `AppConfig.GITHUB_REPO` before building a release.**
-> `app/src/main/java/org/tcgscan/app/AppConfig.kt` ships the placeholder
-> `GITHUB_REPO = "CHANGE-ME-OWNER/tcg-scan-app"`. It is the single constant from which the pack
-> manifest URL is derived
-> (`https://github.com/<REPO>/releases/latest/download/manifest.json`), so with the placeholder in
-> place **no pack can be downloaded**. Replace it with the real `owner/repo` once the GitHub
-> repository exists. The About screen displays a warning while the placeholder is still there, and
-> the pack pipeline reads the same value from the `TCGSCAN_REPO` environment variable (defaulting to
-> the placeholder).
+> **Forks must change `AppConfig.GITHUB_REPO`.**
+> `app/src/main/java/org/tcgscan/app/AppConfig.kt` sets `GITHUB_REPO = "SuperKiment/tgc-scan-app"`. It
+> is the single constant from which the pack manifest URL is derived
+> (`https://github.com/<REPO>/releases/latest/download/manifest.json`). A fork must replace it with its
+> own `owner/repo`, otherwise the app downloads the packs of the upstream repository. The pack pipeline
+> reads the same value from the `TCGSCAN_REPO` environment variable.
 
 ## Requirements
 

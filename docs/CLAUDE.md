@@ -33,7 +33,7 @@ All commands run from the repository root.
 - Pipeline: `python3 -m py_compile pipeline/tcgscan_pipeline/*.py`, plus a cheap dry run. Dependencies: `python3 -m pip install -r pipeline/requirements.txt` (Python 3.12+).
 - Tests: none, by decision (no unit, no instrumented, no CI test job, no test dependencies). Verification is build/compile based.
 - Lint: none configured.
-- Environment pitfalls: `ANDROID_HOME` is unset, so the SDK comes from `sdk.dir` in `local.properties` (never committed). Only JDK 21 is installed (Kotlin/Java target 11, no `jvmToolchain`). `AppConfig.GITHUB_REPO` is still the placeholder `CHANGE-ME-OWNER/tcg-scan-app`, so no pack can be downloaded until it is set.
+- Environment pitfalls: `ANDROID_HOME` is unset, so the SDK comes from `sdk.dir` in `local.properties` (never committed). Only JDK 21 is installed (Kotlin/Java target 11, no `jvmToolchain`). `AppConfig.GITHUB_REPO` is `SuperKiment/tgc-scan-app` (public repo; packs come from its `latest` release).
 
 ## Git, branches and migrations
 - Commits: Claude commits each step once the user has validated it, without asking again. Conventional Commits `type(scope): subject` (scopes seen: app, data, ui, pipeline, build, docs), one commit per validated step.

@@ -38,7 +38,7 @@ Packages under `app/src/main/java/org/tcgscan/app/`:
 | `ui/image`, `ui/theme` | Card image loading, theme |
 
 ## Dependencies
-- Runtime network: the pack manifest at `AppConfig.MANIFEST_URL`, derived from `AppConfig.GITHUB_REPO` (`https://github.com/<repo>/releases/latest/download/manifest.json`), and the pack archives it lists. `GITHUB_REPO` is still the placeholder `CHANGE-ME-OWNER/tcg-scan-app` (`AppConfig.kt:13`), so no pack can be downloaded; `isGithubRepoConfigured()` reports it.
+- Runtime network: the pack manifest at `AppConfig.MANIFEST_URL`, derived from `AppConfig.GITHUB_REPO` (`https://github.com/<repo>/releases/latest/download/manifest.json`), and the pack archives it lists. `GITHUB_REPO` is `SuperKiment/tgc-scan-app` (`AppConfig.kt:13`); a fork must change it, and `isGithubRepoConfigured()` reports whether it still equals the placeholder.
 - Card images: loaded through Coil only from the `https://assets.tcgdex.net/` prefix (`ui/image/CardImage.kt:115`), with a disk cache capped by `AppConfig.IMAGE_CACHE_BYTES` (256 MB).
 - Local: Room database for user data; the installed pack is a SQLite file `<filesDir>/packs/<lang>/pack.db` (`data/pack/PackPaths.kt`) read through `PackCatalog`; ONNX models from assets.
 - Relation with `pipeline/`: the app consumes the packs built by `pipeline/tcgscan_pipeline/packbuild.py` (`pack-<lang>.db.gz`, DDL from `docs/pack-format.md`, plus `manifest.json`). The app refuses a pack whose `pack_meta.pack_schema` is above `AppConfig.PACK_SCHEMA` (1).

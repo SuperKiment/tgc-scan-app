@@ -36,5 +36,5 @@ flowchart LR
 
 Sources of each arrow: `tools/fetch_models.sh` (`DEST_DIR`); `tools/check-foss.sh` (`releaseRuntimeClasspath`, merged manifest); `pipeline/tcgscan_pipeline/config.py` (`EMBED_MODEL_ASSET`, `MODELS_DIR`, `API_BASE`, `DEFAULT_OUT_DIR`); `pipeline/tcgscan_pipeline/images.py` (host allow-list); `AppConfig.kt` (`RELEASE_DOWNLOAD_BASE`); `CardImage.kt` (`https://assets.tcgdex.net/`).
 
-> [!WARNING]
-> The pack publication chain is incomplete. `pipeline/README.md` and `docs/pack-format.md` describe `manifest.py`, `guard.py`, `cli.py` and `.github/workflows/packs.yml`; none exist in the working tree. `AppConfig.GITHUB_REPO` is still the placeholder `CHANGE-ME-OWNER/tcg-scan-app`. Details in the [pipeline sheet](pipeline/vue-ensemble.md).
+> [!NOTE]
+> The pack publication chain exists: `pipeline/tcgscan_pipeline/manifest.py`, `guard.py`, `cli.py` and `.github/workflows/packs.yml`. `AppConfig.GITHUB_REPO` is `SuperKiment/tgc-scan-app`. Details in the [pipeline sheet](pipeline/vue-ensemble.md).

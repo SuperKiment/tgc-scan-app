@@ -10,7 +10,7 @@ object AppConfig {
     const val GITHUB_REPO_PLACEHOLDER = "CHANGE-ME-OWNER/tcg-scan-app"
 
     /** `owner/repo` of the public repository hosting the pack releases. */
-    const val GITHUB_REPO = "CHANGE-ME-OWNER/tcg-scan-app"
+    const val GITHUB_REPO = "SuperKiment/tgc-scan-app"
 
     /**
      * Release asset base. A plain redirect, no GitHub API call, no token and no rate limit (D13);
