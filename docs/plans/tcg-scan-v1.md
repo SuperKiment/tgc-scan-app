@@ -574,7 +574,7 @@ do: Bash script, `set -euo pipefail`: run
   `ai.onnxruntime.TelemetryInitializer` (D5). Print a clear pass/fail summary.
 exit: `bash tools/check-foss.sh` exits 0.
 
-### T31: Final wiring pass and manual-debug checklist  [todo]  (lite: no)
+### T31: Final wiring pass and manual-debug checklist  [done]  (lite: no)
 deps: T15, T16, T17, T18, T19, T20, T21, T22, T29, T30
 files: app/src/main/java/org/tcgscan/app/TcgScanApp.kt, app/src/main/java/org/tcgscan/app/di/AppContainer.kt, app/src/main/res/values/strings.xml, docs/manual-debug.md
 do: Introduce (or finish) the hand-rolled `AppContainer` holding the single instances of
