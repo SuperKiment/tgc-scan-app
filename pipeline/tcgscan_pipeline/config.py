@@ -31,7 +31,7 @@ USER_AGENT = "tcg-scan-app pack pipeline (+https://tcgdex.dev)"
 MIN_REQUEST_INTERVAL_S = 0.150
 """Minimum delay between two TCGdex requests."""
 
-MAX_RETRIES = 8
+MAX_RETRIES = 15
 """Attempts per request before raising ``TcgdexUnavailable``."""
 
 RETRY_BACKOFF_BASE_S = 1.0
