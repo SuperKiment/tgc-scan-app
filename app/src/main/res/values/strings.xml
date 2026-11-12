@@ -35,4 +35,273 @@
     <!-- System list created with the database (FR-16) -->
     <string name="list_wishlist_name">Liste de souhaits</string>
 
+    <!-- Backup screen: JSON/CSV export and JSON import (FR-27/FR-28, T22) -->
+    <string name="backup_intro">La sauvegarde contient vos possessions, votre liste de souhaits et vos listes. Les photos de scan ne sont jamais exportées.</string>
+    <string name="backup_export_json">Exporter en JSON (restaurable)</string>
+    <string name="backup_export_csv">Exporter les possessions en CSV</string>
+    <string name="backup_import_json">Importer une sauvegarde JSON</string>
+    <string name="backup_action_back">Retour</string>
+    <string name="backup_action_merge">Fusionner</string>
+    <string name="backup_action_replace">Remplacer</string>
+    <string name="backup_action_cancel">Annuler</string>
+    <string name="backup_dialog_title">Importer cette sauvegarde ?</string>
+    <string name="backup_dialog_exported_at">Fichier créé le %1$s</string>
+    <string name="backup_dialog_mode_merge">Fusion : ajoute sans rien retirer</string>
+    <string name="backup_dialog_mode_replace">Remplacement : la sauvegarde devient votre collection</string>
+    <string name="backup_summary_ownerships">Possessions : +%1$d, -%2$d</string>
+    <string name="backup_summary_lists">Listes : +%1$d, -%2$d</string>
+    <string name="backup_summary_items">Cartes dans les listes : +%1$d, -%2$d</string>
+    <string name="backup_export_done">Export terminé : %1$d possessions enregistrées.</string>
+    <string name="backup_export_failed">Export impossible. Aucun fichier partiel n\'a été conservé.</string>
+    <string name="backup_import_done">Import appliqué : %1$d possessions ajoutées, %2$d retirées.</string>
+    <string name="backup_import_unreadable">Fichier inaccessible. Aucune modification.</string>
+    <string name="backup_import_corrupt">Fichier illisible ou corrompu. Aucune modification.</string>
+    <string name="backup_import_unsupported">Sauvegarde créée par une version plus récente de l\'application. Mettez l\'application à jour. Aucune modification.</string>
+    <string name="backup_import_failed">Import interrompu. Aucune modification.</string>
+
+    <!-- Catalogue: search, set list, owned badge (FR-14, T17) -->
+    <string name="catalog_action_back">Retour</string>
+    <string name="catalog_search_hint">Nom ou numéro</string>
+    <string name="catalog_search_clear">Effacer la recherche</string>
+    <string name="catalog_no_pack">Aucun pack installé. Installez un pack de langue depuis les réglages pour parcourir le catalogue.</string>
+    <string name="catalog_pack_unreadable">Pack illisible ou plus récent que l\'application. Réinstallez-le depuis les réglages, ou mettez l\'application à jour.</string>
+    <string name="catalog_no_results">Aucune carte ne correspond à « %1$s ».</string>
+    <string name="catalog_load_more">Afficher plus de cartes</string>
+    <string name="catalog_series">Série %1$s</string>
+    <string name="catalog_set_cards">%1$d cartes</string>
+    <string name="catalog_card_number">N° %1$s</string>
+    <string name="catalog_owned">Possédée</string>
+    <string name="catalog_action_add_owned">Marquer comme possédée</string>
+    <string name="catalog_action_remove_owned">Retirer de la collection</string>
+
+    <!-- Catalogue: one set (FR-14, T17) -->
+    <string name="set_browse_owned_count">%1$d/%2$d possédées</string>
+    <string name="set_browse_empty">Cette extension ne contient aucune carte.</string>
+    <string name="set_browse_unavailable">Extension absente du pack installé.</string>
+
+    <!-- Catalogue: card sheet (FR-15, T17) -->
+    <string name="card_detail_unknown_title">Carte inconnue</string>
+    <string name="card_detail_unknown_body">Cet identifiant n\'est pas dans le pack installé. La possession et les listes sont conservées.</string>
+    <string name="card_detail_number">N° %1$s/%2$d</string>
+    <string name="card_detail_set">Extension : %1$s</string>
+    <string name="card_detail_lang">Langue : %1$s</string>
+    <string name="card_detail_lists">Listes</string>
+    <string name="card_detail_add_wishlist">Ajouter à la liste de souhaits</string>
+    <string name="card_detail_in_wishlist">Dans la liste de souhaits</string>
+
+    <!-- Collection: owned cards, filters, removal (FR-13, EC-16, T18) -->
+    <string name="collection_search_placeholder">Nom ou numéro</string>
+    <string name="collection_search_clear">Effacer la recherche</string>
+    <string name="collection_filter_all_langs">Toutes les langues</string>
+    <string name="collection_filter_all_sets">Toutes les extensions</string>
+    <string name="collection_filter_set_option">%1$s (%2$d)</string>
+    <string name="collection_count_total">%1$d cartes possédées</string>
+    <string name="collection_count_filtered">%1$d cartes sur %2$d</string>
+    <string name="collection_number">N° %1$s</string>
+    <string name="collection_number_with_total">N° %1$s/%2$d</string>
+    <string name="collection_detail">%1$s · %2$s</string>
+    <string name="collection_unknown_card">Carte inconnue</string>
+    <string name="collection_unknown_card_id">Identifiant %1$s, absent du pack · %2$s</string>
+    <string name="collection_actions">Actions sur la carte</string>
+    <string name="collection_action_remove">Retirer de la collection</string>
+    <string name="collection_empty_title">Aucune carte dans votre collection</string>
+    <string name="collection_empty_body">Scannez vos cartes pour les ajouter à votre collection.</string>
+    <string name="collection_empty_action">Scanner</string>
+    <string name="collection_no_match">Aucune carte ne correspond à cette recherche.</string>
+
+    <!-- Lists index: wishlist first, then user lists (FR-16/FR-18, T19) -->
+    <string name="lists_action_create">Nouvelle liste</string>
+    <string name="lists_action_rename">Renommer</string>
+    <string name="lists_action_delete">Supprimer</string>
+    <string name="lists_action_confirm">Valider</string>
+    <string name="lists_action_cancel">Annuler</string>
+    <string name="lists_action_more">Actions sur la liste</string>
+    <string name="lists_empty">Aucune liste personnalisée. Créez-en une pour préparer vos achats ou vos échanges.</string>
+    <plurals name="lists_card_count">
+        <item quantity="one">%1$d carte</item>
+        <item quantity="other">%1$d cartes</item>
+    </plurals>
+    <string name="lists_dialog_create_title">Nouvelle liste</string>
+    <string name="lists_dialog_rename_title">Renommer la liste</string>
+    <string name="lists_dialog_name_label">Nom de la liste</string>
+    <string name="lists_dialog_delete_title">Supprimer cette liste ?</string>
+    <string name="lists_dialog_delete_message">« %1$s » sera supprimée. Vos cartes possédées ne changent pas.</string>
+    <string name="lists_message_deleted">Liste supprimée. Vos possessions sont inchangées.</string>
+    <string name="lists_error_name_invalid">Donnez un nom à la liste, de 60 caractères au plus.</string>
+    <string name="lists_error_name_duplicate">Une liste porte déjà ce nom.</string>
+    <string name="lists_error_not_found">Cette liste n\'existe plus.</string>
+    <string name="lists_error_system">La liste de souhaits ne peut être ni renommée ni supprimée.</string>
+    <string name="lists_error_card">Carte invalide. Aucune modification.</string>
+    <string name="lists_error_write">Action impossible. Aucune modification.</string>
+
+    <!-- One list: its cards, resolved through the pack (FR-16/FR-18, T19) -->
+    <string name="list_detail_action_back">Retour</string>
+    <string name="list_detail_action_remove">Retirer de la liste</string>
+    <string name="list_detail_wishlist_hint">Une carte validée comme possédée sort automatiquement de cette liste.</string>
+    <string name="list_detail_empty">Cette liste est vide. Ajoutez des cartes depuis le catalogue ou une fiche carte.</string>
+    <string name="list_detail_unknown_card">Carte inconnue</string>
+    <string name="list_detail_card_number">N° %1$s</string>
+    <string name="list_detail_owned">Possédée</string>
+
+    <!-- Settings: default scan language (FR-5) -->
+    <string name="settings_section_scan">Scan</string>
+    <string name="settings_default_lang_title">Langue de scan par défaut</string>
+    <string name="settings_default_lang_summary">Utilisée quand l\'OCR ne reconnaît pas la langue de la carte.</string>
+    <string name="settings_default_lang_none">Installez un pack pour choisir une langue par défaut.</string>
+    <string name="settings_no_pack_banner">Aucun pack installé : le scan reste indisponible tant qu\'aucune langue n\'est installée.</string>
+    <string name="settings_repo_placeholder_warning">Le dépôt de publication n\'est pas configuré (%1$s) : aucun pack ne peut être téléchargé.</string>
+
+    <!-- Settings: pack management (FR-23/FR-24, T20) -->
+    <string name="settings_section_packs">Packs de langues</string>
+    <string name="settings_packs_check">Rechercher des mises à jour</string>
+    <string name="settings_packs_checking">Lecture du manifeste…</string>
+    <string name="settings_packs_version">Manifeste publié : version %1$s</string>
+    <string name="settings_packs_offline_banner">Hors ligne. Les packs déjà installés restent utilisables.</string>
+    <string name="settings_packs_failed_banner">Manifeste indisponible : %1$s</string>
+    <string name="settings_pack_not_installed">Non installé</string>
+    <string name="settings_pack_installed_summary">Version %1$s · %2$d cartes · %3$s</string>
+    <string name="settings_pack_download_size">Téléchargement : %1$s</string>
+    <string name="settings_pack_required_space">Espace nécessaire : %1$s</string>
+    <string name="settings_pack_requires_app_update">Ce pack exige une version plus récente de l\'application.</string>
+    <string name="settings_pack_action_install">Installer</string>
+    <string name="settings_pack_action_update">Mettre à jour</string>
+    <string name="settings_pack_action_remove">Supprimer</string>
+    <string name="settings_pack_action_cancel">Annuler</string>
+    <string name="settings_pack_action_retry">Réessayer</string>
+    <string name="settings_pack_action_dismiss">Ignorer</string>
+
+    <!-- Settings: live install progress -->
+    <string name="settings_pack_state_preparing">Préparation…</string>
+    <string name="settings_pack_state_downloading">Téléchargement : %1$s sur %2$s</string>
+    <string name="settings_pack_state_verifying">Vérification de l\'empreinte SHA-256…</string>
+    <string name="settings_pack_state_installing">Installation…</string>
+
+    <!-- Settings: install failures; the installed pack is always kept (EC-2/EC-3/EC-17) -->
+    <string name="settings_pack_error_repo">Dépôt de publication non configuré : aucun pack ne peut être téléchargé.</string>
+    <string name="settings_pack_error_manifest">Manifeste illisible : %1$s</string>
+    <string name="settings_pack_error_not_published">Aucun pack publié pour cette langue.</string>
+    <string name="settings_pack_error_malformed">Entrée de manifeste invalide : %1$s</string>
+    <string name="settings_pack_error_offline">Connexion perdue. Le téléchargement reprendra où il s\'est arrêté.</string>
+    <string name="settings_pack_error_http">Erreur réseau (HTTP %1$d).</string>
+    <string name="settings_pack_error_space">Espace insuffisant : %1$s nécessaires, %2$s disponibles.</string>
+    <string name="settings_pack_error_size">Taille inattendue : %1$s attendus, %2$s reçus. Téléchargement rejeté.</string>
+    <string name="settings_pack_error_checksum">Empreinte SHA-256 incorrecte. Téléchargement rejeté, le pack installé est conservé.</string>
+    <string name="settings_pack_error_schema">Pack conçu pour une version plus récente de l\'application (schéma %1$d, pris en charge : %2$d).</string>
+    <string name="settings_pack_error_corrupt">Archive inutilisable : %1$s</string>
+    <string name="settings_pack_error_storage">Erreur de stockage : %1$s</string>
+
+    <!-- Settings: causes of a failed manifest read, reused inside the install failures -->
+    <string name="settings_manifest_repo">dépôt non configuré</string>
+    <string name="settings_manifest_offline">hors ligne</string>
+    <string name="settings_manifest_unavailable">service indisponible (%1$s)</string>
+    <string name="settings_manifest_http">HTTP %1$d</string>
+    <string name="settings_manifest_schema">manifeste de schéma %1$d, trop récent pour cette application</string>
+    <string name="settings_manifest_malformed">manifeste invalide (%1$s)</string>
+
+    <!-- Settings: pack removal keeps every possession (EC-20) -->
+    <string name="settings_remove_title">Supprimer le pack %1$s ?</string>
+    <string name="settings_remove_message">%1$d cartes de cette langue sont possédées. Elles seront conservées : seules les données du pack (catalogue et références visuelles) sont supprimées.</string>
+    <string name="settings_remove_confirm">Supprimer</string>
+    <string name="settings_remove_cancel">Annuler</string>
+
+    <!-- Settings: data, image cache (FR-25) and the entries to Backup and About -->
+    <string name="settings_section_data">Données</string>
+    <string name="settings_clear_image_cache">Vider le cache d\'images</string>
+    <string name="settings_clear_image_cache_summary">Les visuels seront retéléchargés depuis TCGdex à la demande.</string>
+    <string name="settings_entry_backup">Sauvegarde et restauration</string>
+    <string name="settings_entry_about">À propos</string>
+
+    <!-- Settings: transient feedback -->
+    <string name="settings_message_pack_installed">%1$s : pack installé.</string>
+    <string name="settings_message_pack_removed">%1$s : pack supprimé, %2$d cartes possédées conservées.</string>
+    <string name="settings_message_pack_absent">%1$s : aucun pack à supprimer.</string>
+    <string name="settings_message_removal_failed">Suppression impossible : %1$s</string>
+    <string name="settings_message_image_cache_cleared">Cache d\'images vidé.</string>
+
+    <!-- About screen: the FR-29 mentions, the licences and the configured repository (D13) -->
+    <string name="action_back">Retour</string>
+    <string name="about_fan_notice">Projet de fan non affilié à Nintendo, The Pokémon Company ou Creatures. Pokémon et les noms des cartes sont des marques de leurs propriétaires respectifs.</string>
+    <string name="about_data_source">Données des cartes fournies par TCGdex. Les visuels sont chargés à la demande depuis TCGdex et ne sont jamais redistribués dans l\'application ni dans les packs.</string>
+    <string name="about_licence_title">Licence</string>
+    <string name="about_licence_body">TCG Scan est distribué sous licence GPL-3.0 (GNU General Public License v3.0 only).</string>
+    <string name="about_licences_title">Licences des dépendances et des modèles</string>
+    <string name="about_licences_summary">Détail complet, sources et empreintes SHA-256 dans docs/models.md du dépôt.</string>
+    <string name="about_repo_title">Dépôt de publication</string>
+    <string name="about_repo_placeholder_warning">Le dépôt de publication vaut encore %1$s. Renseignez le dépôt réel pour activer le téléchargement des packs.</string>
+
+    <!-- Scan screen (T15) -->
+    <plurals name="scan_counter">
+        <item quantity="one">%1$d carte détectée</item>
+        <item quantity="other">%1$d cartes détectées</item>
+    </plurals>
+    <string name="scan_action_finish">Terminer</string>
+    <string name="scan_torch_turn_on">Allumer la lampe</string>
+    <string name="scan_torch_turn_off">Éteindre la lampe</string>
+    <string name="scan_hint_multiple_cards">Présentez une seule carte à la fois</string>
+    <string name="scan_hint_low_light">Faible lumière : activez la lampe</string>
+    <string name="scan_hint_too_blurry">Image floue : tenez la carte immobile</string>
+    <string name="scan_hint_analysis_failed">Analyse impossible sur cette image</string>
+    <string name="scan_permission_title">Accès à la caméra requis</string>
+    <string name="scan_permission_body">TCG Scan utilise la caméra uniquement pour reconnaître vos cartes, sur l\'appareil. Le catalogue et la collection restent disponibles sans caméra.</string>
+    <string name="scan_permission_action_grant">Autoriser la caméra</string>
+    <string name="scan_permission_action_settings">Ouvrir les réglages</string>
+    <string name="scan_no_pack_title">Aucun pack installé</string>
+    <string name="scan_no_pack_body">Le scan a besoin d\'un pack de cartes. Installez-en un depuis les réglages (une connexion n\'est nécessaire que pour le téléchargement).</string>
+    <string name="scan_no_pack_action_install">Installer un pack</string>
+    <string name="scan_resume_message">Une session de scan inachevée a été retrouvée.</string>
+    <string name="scan_resume_action_resume">Reprendre</string>
+    <string name="scan_resume_action_dismiss">Ignorer</string>
+    <string name="scan_engine_failed">Les modèles de reconnaissance n\'ont pas pu être chargés. Quittez l\'écran puis revenez.</string>
+    <string name="scan_camera_unavailable">Caméra indisponible sur cet appareil.</string>
+
+    <!-- Review: validation of a scan session, the only way into the collection (FR-8/FR-9/FR-10, T16) -->
+    <string name="review_section_recognised">Reconnues (%1$d)</string>
+    <string name="review_section_to_check">À vérifier (%1$d)</string>
+    <string name="review_section_owned">Déjà possédées (%1$d)</string>
+    <string name="review_section_duplicates">Doublons de la rafale (%1$d)</string>
+    <string name="review_validate_all">Tout valider (%1$d)</string>
+    <string name="review_empty">Aucune carte détectée dans cette session.</string>
+    <string name="review_unavailable">Cette session n\'existe plus ou a déjà été validée.</string>
+    <string name="review_card_detail">%1$s · %2$s</string>
+    <string name="review_card_lang">%1$s · %2$s</string>
+    <string name="review_photo_missing">Photo indisponible</string>
+    <string name="review_suggested">Proposée</string>
+    <string name="review_no_candidate">Aucun candidat. Cherchez la carte à la main ou rejetez-la.</string>
+    <string name="review_owned_hint">Déjà dans votre collection : rien n\'est modifié.</string>
+    <string name="review_duplicate_hint">Capturée plusieurs fois : une seule possession.</string>
+    <string name="review_rejected">Rejetée : elle ne sera pas ajoutée.</string>
+    <string name="review_action_search">Chercher une carte</string>
+    <string name="review_action_reject">Rejeter</string>
+    <string name="review_action_undo_reject">Annuler</string>
+    <string name="review_action_install_pack">Installer le pack</string>
+
+    <!-- Review: why a card is in « à vérifier » (one per ReviewReason) -->
+    <string name="review_reason_low_confidence">Ressemblance trop faible pour être sûr.</string>
+    <string name="review_reason_ambiguous">Plusieurs cartes très proches : impossible de trancher.</string>
+    <string name="review_reason_no_visual_reference">Pas de visuel de référence pour cette carte : vérifiez-la.</string>
+    <string name="review_reason_ocr_unconfirmed">Ni le nom ni le numéro n\'ont pu être lus pour confirmer.</string>
+    <string name="review_reason_language_unknown">Langue de la carte non reconnue : la langue par défaut a été utilisée.</string>
+    <string name="review_reason_english_card">Carte anglaise : enregistrée comme la carte française de même identifiant, langue physique anglaise.</string>
+    <string name="review_reason_english_unsupported">Anglais non pris en charge : aucune carte française correspondante.</string>
+    <string name="review_reason_pack_missing">Le pack de cette langue n\'est pas installé.</string>
+    <string name="review_reason_no_match">Aucune carte plausible trouvée.</string>
+
+    <!-- Review: manual search sheet -->
+    <string name="review_search_title">Rechercher une carte</string>
+    <string name="review_search_hint">Nom ou numéro</string>
+    <string name="review_search_clear">Effacer la recherche</string>
+    <string name="review_search_no_pack">Aucun pack installé : installez-en un depuis les réglages pour chercher une carte.</string>
+    <string name="review_search_no_results">Aucune carte ne correspond.</string>
+
+    <!-- Review: validating with undecided rows, and failures (nothing is written on failure) -->
+    <string name="review_confirm_title">Valider avec des cartes non vérifiées ?</string>
+    <plurals name="review_confirm_message">
+        <item quantity="one">%1$d carte à vérifier n\'est pas cochée : elle ne sera pas ajoutée et la session sera clôturée.</item>
+        <item quantity="other">%1$d cartes à vérifier ne sont pas cochées : elles ne seront pas ajoutées et la session sera clôturée.</item>
+    </plurals>
+    <string name="review_confirm_action">Valider</string>
+    <string name="review_confirm_cancel">Continuer la revue</string>
+    <string name="review_error_commit">Validation impossible. Rien n\'a été ajouté.</string>
+    <string name="review_error_closed">Cette session est déjà clôturée. Rien n\'a été ajouté.</string>
+
 </resources>
