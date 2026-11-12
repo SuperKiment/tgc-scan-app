@@ -204,7 +204,7 @@ Base URL `https://api.tcgdex.net/v2`, one language at a time (`fr`, `ja`).
    `pipeline/.cache/images/ja-limitless/<card_id>.png`. The vector is tagged `has_embed = 1`: the
    image is the JP print itself. Politeness: ≥ 1 s between two requests, a generic User-Agent, no
    redirect followed; an image that does not decode is never cached, and the source switches
-   itself off after 3 failed requests in a row or 30 minutes of run time. The source is
+   itself off after 3 failed requests in a row or 150 minutes of run time. The source is
    **optional**: a missing page (about 64 JA sets have none), a
    missing card or any network or parse failure only leaves the card without a visual
    (`has_embed = 0`); it never fails the build nor counts toward the 2 % guard. The pack format is

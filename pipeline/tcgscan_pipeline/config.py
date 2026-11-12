@@ -60,9 +60,10 @@ LIMITLESS_MAX_RETRIES = 4
 """Attempts per Limitless request. Fewer than TCGdex's: the source is optional, so a Limitless
 outage must cost seconds, not minutes, of a build."""
 
-LIMITLESS_MAX_RUN_SECONDS = 1800.0
+LIMITLESS_MAX_RUN_SECONDS = 9000.0
 """Wall-clock budget of one Limitless source, counted from its creation (the ja pack build in
-``build``). Once spent, the source switches itself off: the cards left stay without a visual."""
+``build``). Once spent, the source switches itself off: the cards left stay without a visual.
+150 min keeps a full build (about 1 h without Limitless) well under the 360 min CI job timeout."""
 
 # --- Embedding model (docs/models.md §1, docs/pack-format.md §3) ------------------------------
 
