@@ -1,6 +1,7 @@
 package org.tcgscan.app.data.pack
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -39,6 +40,24 @@ class InstalledPacksStore(private val context: Context) {
         }
         .map(::readAll)
 
+    /**
+     * The packs whose file is on disk, which is what scanning and the collection need. Re-evaluated
+     * on every [installed] emission, so an install, update or removal from Settings is picked up.
+     *
+     * A record whose file vanished is dropped. A pack pushed by hand (docs/manual-debug.md) has no
+     * record: one is derived from its `pack_meta` (`version` is `"local"`, `bytes` is the file size,
+     * so replacing the file changes the record). A pushed file that is not a readable pack is skipped.
+     * Blocking: collect it off the main thread.
+     */
+    val onDisk: Flow<Map<String, InstalledPack>> = installed.map { records ->
+        val packs = LinkedHashMap<String, InstalledPack>()
+        PackPaths.installedLangs(context).forEach { lang ->
+            val pack = records[lang] ?: derivePack(lang)
+            if (pack != null) packs[lang] = pack
+        }
+        packs
+    }
+
     /** The record of one language, `null` when that pack is not installed. */
     fun pack(lang: String): Flow<InstalledPack?> = installed.map { it[lang] }
 
@@ -68,6 +87,23 @@ class InstalledPacksStore(private val context: Context) {
         }
     }
 
+    private fun derivePack(lang: String): InstalledPack? {
+        val catalog = PackCatalog.open(context, lang) ?: return null
+        val meta = try {
+            catalog.use { it.meta() }
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "Pack $lang has no readable pack_meta", e)
+            return null
+        }
+        return InstalledPack(
+            lang = lang,
+            version = LOCAL_VERSION,
+            cardCount = meta.cardCount,
+            bytes = PackPaths.installedBytes(context, lang),
+            packSchema = meta.packSchema,
+        )
+    }
+
     private fun readAll(prefs: Preferences): Map<String, InstalledPack> {
         val langs = prefs[KEY_LANGS] ?: return emptyMap()
         val packs = LinkedHashMap<String, InstalledPack>(langs.size)
@@ -86,6 +122,11 @@ class InstalledPacksStore(private val context: Context) {
     }
 
     private companion object {
+
+        const val TAG = "InstalledPacksStore"
+
+        /** Version of a record derived from a pack file nobody installed through `PackInstaller`. */
+        const val LOCAL_VERSION = "local"
 
         val KEY_LANGS = stringSetPreferencesKey("installed_langs")
 

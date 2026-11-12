@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -253,7 +254,7 @@ class ScanViewModel(
 
     private fun observePacks() {
         viewModelScope.launch {
-            installedPacks.installed.collect { installed ->
+            installedPacks.onDisk.flowOn(Dispatchers.IO).collect { installed ->
                 withContext(Dispatchers.IO) { packCache.refresh(installed) }
                 loadedPacks.value = installed
             }

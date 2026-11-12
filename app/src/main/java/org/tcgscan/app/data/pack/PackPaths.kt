@@ -67,6 +67,12 @@ object PackPaths {
     /** True when [lang] has a usable pack on disk. */
     fun isInstalled(context: Context, lang: String): Boolean = packDb(context, lang).isFile
 
+    /** Languages with a pack file on disk, sorted; blocking (lists a directory). */
+    fun installedLangs(context: Context): List<String> =
+        packsRoot(context).list().orEmpty()
+            .filter { isValidLang(it) && isInstalled(context, it) }
+            .sorted()
+
     /** Size of the installed pack of [lang], `0` when it is absent. */
     fun installedBytes(context: Context, lang: String): Long =
         packDb(context, lang).let { if (it.isFile) it.length() else 0L }

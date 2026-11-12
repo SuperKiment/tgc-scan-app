@@ -445,9 +445,7 @@ class PackCatalogs(context: Context) : Closeable {
      * hand (docs/manual-debug.md) has no record, and a record whose file vanished must not show up.
      */
     suspend fun installedLangs(): List<String> = withContext(Dispatchers.IO) {
-        PackPaths.packsRoot(appContext).list().orEmpty()
-            .filter { PackPaths.isValidLang(it) && PackPaths.isInstalled(appContext, it) }
-            .sorted()
+        PackPaths.installedLangs(appContext)
     }
 
     /** Closes every cached handle, so the next [of] reopens the file an install may have replaced. */

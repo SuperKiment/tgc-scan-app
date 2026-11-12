@@ -50,12 +50,12 @@ class CollectionViewModel(
     private val query = MutableStateFlow("")
 
     /**
-     * The whole collection, resolved. The installed-packs Flow is both an input (a pack this build
+     * The whole collection, resolved. The on-disk packs Flow is both an input (a pack this build
      * cannot read is not opened, EC-17) and a trigger: installing a pack fills in the names of the
      * ids that were showing as unknown.
      */
     private val resolved: Flow<List<CollectionCard>> =
-        combine(ownership.observeAll(), installedPacks.installed, ::resolve)
+        combine(ownership.observeAll(), installedPacks.onDisk, ::resolve)
             .flowOn(Dispatchers.IO)
 
     val state: StateFlow<CollectionUiState> =

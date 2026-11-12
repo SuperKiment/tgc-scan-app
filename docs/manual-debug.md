@@ -75,11 +75,11 @@ adb shell run-as org.tcgscan.app ls -l files/packs/fr     # pack.db present, own
 Force-stop and reopen the app after the copy. Language code `ja` follows the same path with
 `--langs ja` and `files/packs/ja/pack.db`.
 
-> **Limit of a hand-pushed pack.** The catalogue and the review screen list packs from the files on
-> disk, so they see it. The scan screen and the collection screen read the `installed_packs` record,
-> which only `PackInstaller` writes after a verified download. A pushed pack therefore enables catalogue
-> browsing, manual search and the card detail, **not scanning**: for the scan steps below, install the
-> pack from Settings > « Packs de langues » > « Installer » once `GITHUB_REPO` is set and a release exists.
+> **Hand-pushed pack.** The catalogue, the review screen, the scan screen and the collection screen
+> all use the packs whose file is on disk, so a pushed pack enables browsing, manual search, card
+> detail, scanning and the collection. Scan and collection derive a record from the pack's `pack_meta`
+> when `installed_packs` has none. Installing from Settings > « Packs de langues » > « Installer »
+> remains the normal path (it is the only one that records the version for update checks).
 
 Useful device-side inspection (debug build):
 
