@@ -272,8 +272,9 @@ class PackInstaller(
         return digest.digest().toHex()
     }
 
+    // `this@toHex` is required: inside buildString a bare `forEach` binds to the (empty) builder.
     private fun ByteArray.toHex(): String = buildString(size * 2) {
-        forEach { byte ->
+        this@toHex.forEach { byte ->
             val value = byte.toInt() and 0xFF
             append(HEX_DIGITS[value ushr 4])
             append(HEX_DIGITS[value and 0x0F])
