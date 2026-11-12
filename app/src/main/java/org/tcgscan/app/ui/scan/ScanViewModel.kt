@@ -40,6 +40,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.opencv.core.CvException
 import org.tcgscan.app.data.AppPrefs
+import org.tcgscan.app.data.LearnedEmbeddingRepository
 import org.tcgscan.app.data.db.ScanDetectionState
 import org.tcgscan.app.data.pack.EmbeddingIndex
 import org.tcgscan.app.data.pack.InstalledPack
@@ -70,6 +71,7 @@ import org.tcgscan.app.ui.settings.SettingsViewModel
 class ScanViewModel(
     private val appContext: Context,
     private val sessions: ScanSessionRepository,
+    private val learned: LearnedEmbeddingRepository,
     private val installedPacks: InstalledPacksStore,
     private val appPrefs: AppPrefs,
     private val onnxEnv: OnnxEnv,
@@ -128,7 +130,7 @@ class ScanViewModel(
                 // Not cancellable: a pipeline that finished opening must be handed over or
                 // released here, never dropped with its native buffers.
                 withContext(NonCancellable + Dispatchers.Default) {
-                    ScanPipeline.open(appContext, onnxEnv, sessions, packCache::current)
+                    ScanPipeline.open(appContext, onnxEnv, sessions, learned, packCache::current)
                 }
             } catch (e: Exception) {
                 // ORT, the asset extraction and the native OCR setup all fail with different types;
@@ -369,6 +371,7 @@ class ScanViewModel(
                     return ScanViewModel(
                         appContext = appContext,
                         sessions = container.scanSessionRepository,
+                        learned = container.learnedEmbeddingRepository,
                         installedPacks = container.installedPacksStore,
                         appPrefs = container.appPrefs,
                         onnxEnv = container.onnxEnv,

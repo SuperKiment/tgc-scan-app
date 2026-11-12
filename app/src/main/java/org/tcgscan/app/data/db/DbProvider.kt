@@ -16,14 +16,34 @@ object DbProvider {
     private const val DB_NAME = "tcgscan.db"
 
     /**
-     * Schema history (NFR-9). Empty at version 1, and the only place a migration is ever
-     * registered.
+     * Schema history (NFR-9), the only place a migration is ever registered. The SQL must match
+     * what Room exports in `app/schemas`, or the schema validation fails at open.
      *
      * The builder deliberately does not call `fallbackToDestructiveMigration()`: the collection is
      * the user's own data and has no remote copy, so a missing migration must fail loudly rather
      * than silently recreate an empty database.
      */
-    val MIGRATIONS: Array<Migration> = emptyArray()
+    val MIGRATIONS: Array<Migration> = arrayOf(
+        // 1 -> 2: on-device learning. The embedding of a capture is kept on its row, and the vectors
+        // of validated scans go to their own table.
+        object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `scan_detections` ADD COLUMN `embedding` BLOB")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `learned_embeddings` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`lang` TEXT NOT NULL, " +
+                        "`card_id` TEXT NOT NULL, " +
+                        "`vector` BLOB NOT NULL, " +
+                        "`created_at` INTEGER NOT NULL)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_learned_embeddings_lang_card_id` " +
+                        "ON `learned_embeddings` (`lang`, `card_id`)",
+                )
+            }
+        },
+    )
 
     @Volatile
     private var instance: AppDatabase? = null

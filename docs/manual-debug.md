@@ -128,6 +128,27 @@ kept, nothing is added), EC-15 (airplane mode: card visuals fall back to the sca
 EC-17 (pack with a newer `pack_schema`: refused, old pack kept), EC-18 (corrupt import file: refused, no
 change), EC-20 (removing a pack with owned cards: warning, ownerships kept).
 
+### On-device learning (schema 2)
+
+When a detection is validated in the review (pre-ticked or picked by hand, search included), the
+embedding of the scan is kept as an extra visual reference of the chosen card, under its pack language
+(an English card filed under its French id is learned under `fr`). At most the 3 newest vectors are kept
+per card. The matcher searches them next to the pack vectors, so a card with `has_embed` 0 or 2 can be
+pre-ticked on a later scan once it was validated once (same thresholds, and the OCR must still confirm
+the name or the number). They are not exported in the JSON backup, and « Remplacer » leaves them alone.
+
+Check: scan a card without own visual reference (typically a Japanese one), validate it, scan it again in
+a new burst: it should now land in « Reconnues » instead of « À vérifier ». Then, with the database pulled
+as in section 2:
+
+```bash
+sqlite3 /tmp/tcgscan.db "SELECT count(*) FROM learned_embeddings; SELECT lang, card_id, length(vector) FROM learned_embeddings;"
+```
+
+`length(vector)` must be 384 and a card never has more than 3 rows. Settings > « Données » > « Oublier les
+cartes apprises » (confirmation dialog) empties the table; the row shows the live count. An upgrade from a
+schema 1 install keeps the collection (migration 1 to 2, no data loss).
+
 ## 4. Reporting
 
 Record a failing step with the build commit (`git rev-parse --short HEAD`), the APK ABI, the device and the

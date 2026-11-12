@@ -38,7 +38,8 @@ class MatchPack(val catalog: PackCatalog, val index: EmbeddingIndex?) {
  * The hybrid rule, entirely local:
  *
  * 1. the visual top-[ScanTuning.TOP_K] of the chosen language comes from
- *    [EmbeddingIndex.topK] — the app's single similarity entry point;
+ *    [EmbeddingIndex.topK] — the app's single similarity entry point — over the pack's vectors and
+ *    over the vectors learned from the user's validated scans, merged per card on the best cosine;
  * 2. every neighbour is **re-scored** with its OCR agreement (printed number, the full
  *    « 136/201 », set id or set name, normalised-name Levenshtein ratio), so an identical-art
  *    reprint is separated by what is printed on it (FR-2) and not by a hair of cosine;
@@ -79,6 +80,8 @@ object Matcher {
      *   and forces a review (FR-5).
      * @param sessionLang default language of the scan session, a TCGdex code (`fr`, `ja`).
      * @param installedPacks the readable packs, keyed by language code.
+     * @param learnedIndexes the references learned on the device, keyed by pack language; a language
+     *   without one is simply absent.
      */
     fun match(
         embedding: FloatArray?,
@@ -86,6 +89,7 @@ object Matcher {
         script: CardScript,
         sessionLang: String,
         installedPacks: Map<String, MatchPack>,
+        learnedIndexes: Map<String, EmbeddingIndex> = emptyMap(),
     ): MatchOutcome {
         require(sessionLang.isNotBlank()) { "The scan session has no default language" }
 
@@ -95,7 +99,8 @@ object Matcher {
             ?: return MatchOutcome.NoCandidate(lang, ReviewReason.PACK_MISSING)
 
         val physicalLang = if (isEnglish) PHYSICAL_LANG_EN else lang
-        val ranked = collect(pack, embedding, parsedText, physicalLang).sortedWith(BY_SCORE)
+        val ranked = collect(pack, learnedIndexes[lang], embedding, parsedText, physicalLang)
+            .sortedWith(BY_SCORE)
         val top = ranked.firstOrNull() ?: return MatchOutcome.NoCandidate(
             lang,
             if (isEnglish) ReviewReason.ENGLISH_UNSUPPORTED else ReviewReason.NO_MATCH,
@@ -150,6 +155,7 @@ object Matcher {
      */
     private fun collect(
         pack: MatchPack,
+        learned: EmbeddingIndex?,
         embedding: FloatArray?,
         parsedText: ParsedCardText,
         physicalLang: String,
@@ -158,14 +164,16 @@ object Matcher {
         // `sets` is read once per set and reused: a top-K spans a handful of sets at most.
         val sets = HashMap<String, PackSet?>()
 
-        val index = pack.index
-        if (embedding != null && index != null && index.size > 0 && embedding.size == index.dim) {
-            val hits = index.topK(embedding, ScanTuning.TOP_K)
-            val cards = pack.catalog.cardsByIds(hits.map { it.first })
-            for ((cardId, cosine) in hits) {
-                // A vector without its `cards` row cannot happen in a valid pack (docs §2.2); skip it.
+        val hits = visualHits(pack.index, learned, embedding)
+        if (hits.isNotEmpty()) {
+            val cards = pack.catalog.cardsByIds(hits.keys)
+            for ((cardId, hit) in hits) {
+                // A vector without its `cards` row cannot happen in a valid pack (docs §2.2), but a
+                // learned one can outlive its card when a newer pack drops it (EC-16); skip it.
                 val card = cards[cardId] ?: continue
-                byCardId[cardId] = candidate(pack, card, sets, parsedText, physicalLang, cosine)
+                byCardId[cardId] = candidate(
+                    pack, card, sets, parsedText, physicalLang, hit.cosine, hit.fromLearned,
+                )
             }
         }
 
@@ -179,6 +187,38 @@ object Matcher {
         return ArrayList(byCardId.values)
     }
 
+    /** Best visual evidence for one card; [fromLearned] says which vector produced [cosine]. */
+    private class VisualHit(val cosine: Float, val fromLearned: Boolean)
+
+    /**
+     * The visual neighbours of [embedding] among the pack's vectors and the [learned] ones, one hit
+     * per card: the highest cosine wins, and a tie goes to the learned vector. [VisualHit.fromLearned]
+     * follows the winner, so a card is only treated as learned (own reference, no EN-fallback
+     * penalty) when its learned vector is really what matched.
+     */
+    private fun visualHits(
+        index: EmbeddingIndex?,
+        learned: EmbeddingIndex?,
+        embedding: FloatArray?,
+    ): Map<String, VisualHit> {
+        val hits = LinkedHashMap<String, VisualHit>()
+        if (embedding == null) return hits
+        if (index != null && index.size > 0 && embedding.size == index.dim) {
+            for ((cardId, cosine) in index.topK(embedding, ScanTuning.TOP_K)) {
+                hits[cardId] = VisualHit(cosine, fromLearned = false)
+            }
+        }
+        if (learned != null && learned.size > 0 && embedding.size == learned.dim) {
+            for ((cardId, cosine) in learned.topK(embedding, ScanTuning.TOP_K)) {
+                val known = hits[cardId]
+                if (known == null || cosine >= known.cosine) {
+                    hits[cardId] = VisualHit(cosine, fromLearned = true)
+                }
+            }
+        }
+        return hits
+    }
+
     private fun candidate(
         pack: MatchPack,
         card: PackCard,
@@ -186,6 +226,7 @@ object Matcher {
         parsedText: ParsedCardText,
         physicalLang: String,
         cosine: Float?,
+        fromLearned: Boolean = false,
     ): Candidate {
         val set = if (sets.containsKey(card.setId)) {
             sets[card.setId]
@@ -199,6 +240,7 @@ object Matcher {
             physicalLang = physicalLang,
             cosine = cosine,
             agreement = agreementOf(card, set, parsedText),
+            fromLearnedReference = fromLearned,
         )
     }
 

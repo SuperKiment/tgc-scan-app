@@ -14,6 +14,7 @@ import org.tcgscan.app.data.db.ScanDetectionState
 import org.tcgscan.app.data.db.ScanSessionDao
 import org.tcgscan.app.data.db.ScanSessionEntity
 import org.tcgscan.app.data.db.ScanSessionStatus
+import org.tcgscan.app.data.pack.EmbeddingIndex
 import org.tcgscan.app.scan.match.Candidate
 import org.tcgscan.app.scan.match.MatchOutcome
 import org.tcgscan.app.scan.text.CardScript
@@ -84,12 +85,15 @@ class ScanSessionRepository(
      * @param script the language the OCR established, stored as `detected_lang` (FR-5).
      * @param cardRgb the perspective-corrected card to keep as the review photo (FR-26), or `null`
      *   to store no photo.
+     * @param embedding the embedding the matcher saw, kept quantised on the row so that validating
+     *   the detection can turn it into a learned reference; `null` when there is none.
      */
     suspend fun recordDetection(
         sessionId: Long,
         outcome: MatchOutcome,
         script: CardScript,
         cardRgb: Mat?,
+        embedding: FloatArray?,
     ): Long {
         require(sessionId > 0L) { "Invalid session id $sessionId" }
         val chosen = chosenCandidate(outcome)
@@ -104,6 +108,7 @@ class ScanSessionRepository(
             // T4 documents `score` as the leading candidate's score and as null when that candidate
             // has no visual evidence at all, which is the OCR-only path of FR-3.
             score = outcome.candidates.firstOrNull()?.takeIf { it.isVisual }?.score,
+            embedding = embedding?.let(EmbeddingIndex::quantize),
             createdAt = System.currentTimeMillis(),
         )
         val detectionId = sessions.insertDetection(row)

@@ -9,6 +9,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.opencv.core.Mat
+import org.tcgscan.app.data.LearnedEmbeddingRepository
 import org.tcgscan.app.scan.detect.CameraFrame
 import org.tcgscan.app.scan.detect.CardQuad
 import org.tcgscan.app.scan.detect.CardQuadDetector
@@ -74,6 +75,7 @@ sealed interface ScanEvent {
  */
 class ScanPipeline(
     private val sessions: ScanSessionRepository,
+    private val learned: LearnedEmbeddingRepository,
     /**
      * The packs the matcher may read, keyed by language. Called on the scan thread for each
      * capture, so the provider is expected to hand back an already-open, cached map.
@@ -233,16 +235,18 @@ class ScanPipeline(
                 return ScanEvent.Duplicate(detectionId, duplicate.detectionId)
             }
 
+            val packs = installedPacks()
             val outcome = Matcher.match(
                 embedding = embedding,
                 parsedText = parsedText,
                 script = script,
                 sessionLang = sessionLang,
-                installedPacks = installedPacks(),
+                installedPacks = packs,
+                learnedIndexes = learned.indexesFor(packs.keys),
             )
             // Persisted — photo included — before the capture is reported, so an app killed one
             // frame later loses nothing (EC-13).
-            val detectionId = sessions.recordDetection(sessionId, outcome, script, card)
+            val detectionId = sessions.recordDetection(sessionId, outcome, script, card, embedding)
             dedup.remember(detectionId, embedding, parsedText)
             return ScanEvent.Detected(detectionId)
         } finally {
@@ -289,9 +293,11 @@ class ScanPipeline(
             context: Context,
             env: OnnxEnv,
             sessions: ScanSessionRepository,
+            learned: LearnedEmbeddingRepository,
             installedPacks: () -> Map<String, MatchPack>,
         ): ScanPipeline = ScanPipeline(
             sessions = sessions,
+            learned = learned,
             installedPacks = installedPacks,
             converter = FrameConverter(),
             detector = CardQuadDetector(),
