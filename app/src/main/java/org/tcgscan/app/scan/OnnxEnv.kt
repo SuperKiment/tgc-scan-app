@@ -10,7 +10,7 @@ import java.io.IOException
 /**
  * The single ONNX Runtime environment of the process and the only factory of [OrtSession]s (D5/D6).
  *
- * One instance per process, held by the app container (T31). It owns every session it creates, so
+ * One instance per process, held by the app container. It owns every session it creates, so
  * [close] releases all native inference memory at once — a session keeps its whole weight set
  * resident (the embedder alone is 24 MB), which must not leak when the scan screen goes away.
  *

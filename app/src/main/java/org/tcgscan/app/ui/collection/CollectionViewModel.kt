@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import org.tcgscan.app.data.db.DbProvider
 import org.tcgscan.app.data.db.OwnedCard
 import org.tcgscan.app.data.db.OwnershipDao
 import org.tcgscan.app.data.pack.InstalledPack
@@ -23,6 +22,7 @@ import org.tcgscan.app.data.pack.InstalledPacksStore
 import org.tcgscan.app.data.pack.PackCard
 import org.tcgscan.app.data.pack.PackCatalog
 import org.tcgscan.app.data.pack.PackSet
+import org.tcgscan.app.di.appContainer
 import org.tcgscan.app.scan.text.TextNormalizer
 
 /**
@@ -197,12 +197,9 @@ class CollectionViewModel(
         /** Keeps the join alive across a tab switch or a rotation instead of redoing it at once. */
         private const val SUBSCRIPTION_TIMEOUT_MS = 5_000L
 
-        /**
-         * Ad-hoc wiring until the dependency container of T31 owns the database and the pack layer;
-         * [context] is only used to reach the application-scoped singletons.
-         */
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext
+            val container = context.appContainer
             return object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     require(modelClass.isAssignableFrom(CollectionViewModel::class.java)) {
@@ -211,8 +208,8 @@ class CollectionViewModel(
                     @Suppress("UNCHECKED_CAST")
                     return CollectionViewModel(
                         appContext = appContext,
-                        ownership = DbProvider.get(appContext).ownershipDao(),
-                        installedPacks = InstalledPacksStore(appContext),
+                        ownership = container.db.ownershipDao(),
+                        installedPacks = container.installedPacksStore,
                     ) as T
                 }
             }

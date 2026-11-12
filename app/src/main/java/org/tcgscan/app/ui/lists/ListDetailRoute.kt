@@ -85,7 +85,7 @@ fun ListDetailRoute(nav: NavController, listId: Long) {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                            contentDescription = stringResource(R.string.list_detail_action_back),
+                            contentDescription = stringResource(R.string.action_back),
                         )
                     }
                 },

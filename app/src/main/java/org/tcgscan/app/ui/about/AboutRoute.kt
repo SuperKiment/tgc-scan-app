@@ -98,7 +98,7 @@ fun AboutRoute(nav: NavController) {
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text(
-                        text = component,
+                        text = stringResource(component),
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.weight(1f),
                     )
@@ -142,17 +142,17 @@ fun AboutRoute(nav: NavController) {
 
 /**
  * Component / licence pairs, copied from `docs/models.md` §4 (FR-29, NFR-1). Component names are
- * proper nouns and licence identifiers are SPDX ids: neither is translated.
+ * string resources (a few carry words); licence identifiers are SPDX ids and stay untranslated.
  */
-private val LICENCES: List<Pair<String, String>> = listOf(
-    "TCG Scan" to "GPL-3.0-only",
-    "facebook/dinov2-small (export ONNX int8)" to "Apache-2.0",
-    "PP-OCRv4 / PP-OCRv3 + dictionnaires PaddleOCR" to "Apache-2.0",
-    "ONNX Runtime Android 1.31.1" to "MIT",
-    "OpenCV 4.12.0" to "Apache-2.0",
-    "AndroidX (Compose, CameraX, Room, DataStore, Lifecycle, Navigation)" to "Apache-2.0",
-    "Kotlin, kotlinx.coroutines, kotlinx.serialization" to "Apache-2.0",
-    "OkHttp 4.12.0" to "Apache-2.0",
-    "Coil 2.7.0" to "Apache-2.0",
-    "Données des cartes : TCGdex (tcgdex.dev)" to "TCGdex",
+private val LICENCES: List<Pair<Int, String>> = listOf(
+    R.string.about_licence_item_app to "GPL-3.0-only",
+    R.string.about_licence_item_dinov2 to "Apache-2.0",
+    R.string.about_licence_item_ocr to "Apache-2.0",
+    R.string.about_licence_item_onnx to "MIT",
+    R.string.about_licence_item_opencv to "Apache-2.0",
+    R.string.about_licence_item_androidx to "Apache-2.0",
+    R.string.about_licence_item_kotlin to "Apache-2.0",
+    R.string.about_licence_item_okhttp to "Apache-2.0",
+    R.string.about_licence_item_coil to "Apache-2.0",
+    R.string.about_licence_item_tcgdex to "TCGdex",
 )

@@ -9,6 +9,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import kotlinx.coroutines.flow.first
 import org.tcgscan.app.data.AppPrefs
+import org.tcgscan.app.di.appContainer
 import org.tcgscan.app.ui.Routes
 import org.tcgscan.app.ui.TcgScanNavHost
 import org.tcgscan.app.ui.theme.TcgScanTheme
@@ -24,7 +25,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val prefs = AppPrefs(applicationContext)
+        val prefs = appContainer.appPrefs
         setContent {
             TcgScanTheme {
                 // `null` for the instant the preferences are being read: nothing is shown yet.

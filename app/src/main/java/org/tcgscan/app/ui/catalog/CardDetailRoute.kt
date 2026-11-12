@@ -69,7 +69,7 @@ fun CardDetailRoute(nav: NavController, lang: String, cardId: String) {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                            contentDescription = stringResource(R.string.catalog_action_back),
+                            contentDescription = stringResource(R.string.action_back),
                         )
                     }
                 },

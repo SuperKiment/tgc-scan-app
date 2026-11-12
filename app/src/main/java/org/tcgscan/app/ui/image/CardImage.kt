@@ -12,10 +12,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
+import org.tcgscan.app.R
 import java.io.File
 
 /**
@@ -97,7 +99,7 @@ private fun TextCard(name: String, localId: String, modifier: Modifier) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "N° $localId",
+                text = stringResource(R.string.catalog_card_number, localId),
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
             )

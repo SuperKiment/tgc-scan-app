@@ -24,10 +24,10 @@ import org.tcgscan.app.data.CardListRepository
 import org.tcgscan.app.data.ListMutationResult
 import org.tcgscan.app.data.db.CardListEntity
 import org.tcgscan.app.data.db.CardListItem
-import org.tcgscan.app.data.db.DbProvider
 import org.tcgscan.app.data.db.OwnershipDao
 import org.tcgscan.app.data.pack.PackCard
 import org.tcgscan.app.data.pack.PackCatalog
+import org.tcgscan.app.di.appContainer
 
 /**
  * State holders of the lists area: [ListsViewModel] for the wishlist + user lists index,
@@ -118,18 +118,15 @@ class ListsViewModel(private val repository: CardListRepository) : ViewModel() {
 
         private const val TAG = "ListsViewModel"
 
-        /** Ad-hoc wiring until the dependency container of T31 owns the database. */
         fun factory(context: Context): ViewModelProvider.Factory {
-            val appContext = context.applicationContext
+            val container = context.appContainer
             return object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     require(modelClass.isAssignableFrom(ListsViewModel::class.java)) {
                         "ListsViewModel.factory asked for $modelClass"
                     }
                     @Suppress("UNCHECKED_CAST")
-                    return ListsViewModel(
-                        CardListRepository(DbProvider.get(appContext).cardListDao()),
-                    ) as T
+                    return ListsViewModel(container.cardListRepository) as T
                 }
             }
         }
@@ -274,20 +271,19 @@ class ListDetailViewModel(
         /** SQLite binds at most 999 parameters; the DAO query spends one per id. */
         private const val OWNED_QUERY_CHUNK = 500
 
-        /** Ad-hoc wiring until the dependency container of T31 owns the database. */
         fun factory(context: Context, listId: Long): ViewModelProvider.Factory {
             val appContext = context.applicationContext
+            val container = context.appContainer
             return object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     require(modelClass.isAssignableFrom(ListDetailViewModel::class.java)) {
                         "ListDetailViewModel.factory asked for $modelClass"
                     }
-                    val db = DbProvider.get(appContext)
                     @Suppress("UNCHECKED_CAST")
                     return ListDetailViewModel(
                         listId = listId,
-                        repository = CardListRepository(db.cardListDao()),
-                        ownershipDao = db.ownershipDao(),
+                        repository = container.cardListRepository,
+                        ownershipDao = container.db.ownershipDao(),
                         appContext = appContext,
                     ) as T
                 }

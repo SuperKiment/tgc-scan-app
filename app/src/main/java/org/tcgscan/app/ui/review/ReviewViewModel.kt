@@ -22,12 +22,11 @@ import kotlinx.coroutines.withContext
 import org.tcgscan.app.data.CollectionRepository
 import org.tcgscan.app.data.CommitResult
 import org.tcgscan.app.data.ReviewDecision
-import org.tcgscan.app.data.db.DbProvider
 import org.tcgscan.app.data.db.ScanDetectionEntity
 import org.tcgscan.app.data.db.ScanDetectionState
 import org.tcgscan.app.data.db.ScanSessionStatus
 import org.tcgscan.app.data.pack.PackSet
-import org.tcgscan.app.scan.ScanPhotoStore
+import org.tcgscan.app.di.appContainer
 import org.tcgscan.app.scan.ScanSessionRepository
 import org.tcgscan.app.scan.ScanTuning
 import org.tcgscan.app.scan.match.Candidate
@@ -428,21 +427,19 @@ class ReviewViewModel(
         /** Keeps the rows alive across a rotation instead of rebuilding them at once. */
         private const val SUBSCRIPTION_TIMEOUT_MS = 5_000L
 
-        /** Ad-hoc wiring until the dependency container of T31 owns these singletons. */
         fun factory(context: Context, sessionId: Long): ViewModelProvider.Factory {
             val appContext = context.applicationContext
+            val container = context.appContainer
             return object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     require(modelClass.isAssignableFrom(ReviewViewModel::class.java)) {
                         "ReviewViewModel.factory asked for $modelClass"
                     }
-                    val db = DbProvider.get(appContext)
-                    val photos = ScanPhotoStore(appContext)
                     @Suppress("UNCHECKED_CAST")
                     return ReviewViewModel(
                         sessionId = sessionId,
-                        sessions = ScanSessionRepository(db.scanSessionDao(), db.ownershipDao(), photos),
-                        collection = CollectionRepository(db, photos),
+                        sessions = container.scanSessionRepository,
+                        collection = container.collectionRepository,
                         catalogs = PackCatalogs(appContext),
                     ) as T
                 }

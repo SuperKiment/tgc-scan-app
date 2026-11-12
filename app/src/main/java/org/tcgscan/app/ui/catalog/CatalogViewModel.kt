@@ -18,13 +18,12 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.tcgscan.app.data.CollectionRepository
 import org.tcgscan.app.data.db.AppDatabase
-import org.tcgscan.app.data.db.DbProvider
 import org.tcgscan.app.data.pack.InstalledPacksStore
 import org.tcgscan.app.data.pack.PackCard
 import org.tcgscan.app.data.pack.PackCatalog
 import org.tcgscan.app.data.pack.PackPaths
 import org.tcgscan.app.data.pack.PackSet
-import org.tcgscan.app.scan.ScanPhotoStore
+import org.tcgscan.app.di.appContainer
 import org.tcgscan.app.scan.text.TextNormalizer
 import java.io.Closeable
 
@@ -258,9 +257,9 @@ class CatalogViewModel(
 
     companion object {
 
-        /** Ad-hoc wiring until the dependency container of T31 owns these singletons. */
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext
+            val container = context.appContainer
             return object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     require(modelClass.isAssignableFrom(CatalogViewModel::class.java)) {
@@ -269,8 +268,8 @@ class CatalogViewModel(
                     @Suppress("UNCHECKED_CAST")
                     return CatalogViewModel(
                         catalogs = PackCatalogs(appContext),
-                        installedPacks = InstalledPacksStore(appContext),
-                        db = DbProvider.get(appContext),
+                        installedPacks = container.installedPacksStore,
+                        db = container.db,
                     ) as T
                 }
             }
@@ -341,22 +340,21 @@ class SetBrowseViewModel(
 
     companion object {
 
-        /** Ad-hoc wiring until the dependency container of T31 owns these singletons. */
         fun factory(context: Context, lang: String, setId: String): ViewModelProvider.Factory {
             val appContext = context.applicationContext
+            val container = context.appContainer
             return object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     require(modelClass.isAssignableFrom(SetBrowseViewModel::class.java)) {
                         "SetBrowseViewModel.factory asked for $modelClass"
                     }
-                    val db = DbProvider.get(appContext)
                     @Suppress("UNCHECKED_CAST")
                     return SetBrowseViewModel(
                         lang = lang,
                         setId = setId,
                         catalogs = PackCatalogs(appContext),
-                        db = db,
-                        collection = CollectionRepository(db, ScanPhotoStore(appContext)),
+                        db = container.db,
+                        collection = container.collectionRepository,
                     ) as T
                 }
             }

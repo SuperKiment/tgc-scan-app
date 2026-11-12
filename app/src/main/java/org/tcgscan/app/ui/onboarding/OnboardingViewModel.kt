@@ -21,6 +21,7 @@ import org.tcgscan.app.data.pack.PackInstallState
 import org.tcgscan.app.data.pack.PackRepository
 import org.tcgscan.app.data.pack.PackStatus
 import org.tcgscan.app.data.pack.PackUpdateResult
+import org.tcgscan.app.di.appContainer
 import org.tcgscan.app.ui.settings.ManifestUiState
 import org.tcgscan.app.ui.settings.PackUiState
 import org.tcgscan.app.ui.settings.SettingsViewModel
@@ -164,11 +165,12 @@ class OnboardingViewModel(
 
         private const val STOP_TIMEOUT_MILLIS = 5_000L
 
-        /** Ad-hoc wiring until the dependency container of T31 owns these singletons. */
         fun factory(context: Context): ViewModelProvider.Factory {
-            val app = context.applicationContext
+            val container = context.appContainer
             return viewModelFactory {
-                initializer { OnboardingViewModel(prefs = AppPrefs(app), packs = PackRepository(app)) }
+                initializer {
+                    OnboardingViewModel(prefs = container.appPrefs, packs = container.packRepository)
+                }
             }
         }
     }

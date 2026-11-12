@@ -16,10 +16,9 @@ import org.tcgscan.app.data.CollectionRepository
 import org.tcgscan.app.data.db.AppDatabase
 import org.tcgscan.app.data.db.CardListEntity
 import org.tcgscan.app.data.db.CardListItem
-import org.tcgscan.app.data.db.DbProvider
 import org.tcgscan.app.data.pack.PackCard
 import org.tcgscan.app.data.pack.PackSet
-import org.tcgscan.app.scan.ScanPhotoStore
+import org.tcgscan.app.di.appContainer
 
 private const val TAG_CARD_DETAIL = "CardDetailViewModel"
 
@@ -111,22 +110,21 @@ class CardDetailViewModel(
 
     companion object {
 
-        /** Ad-hoc wiring until the dependency container of T31 owns these singletons. */
         fun factory(context: Context, lang: String, cardId: String): ViewModelProvider.Factory {
             val appContext = context.applicationContext
+            val container = context.appContainer
             return object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     require(modelClass.isAssignableFrom(CardDetailViewModel::class.java)) {
                         "CardDetailViewModel.factory asked for $modelClass"
                     }
-                    val db = DbProvider.get(appContext)
                     @Suppress("UNCHECKED_CAST")
                     return CardDetailViewModel(
                         lang = lang,
                         cardId = cardId,
                         catalogs = PackCatalogs(appContext),
-                        db = db,
-                        collection = CollectionRepository(db, ScanPhotoStore(appContext)),
+                        db = container.db,
+                        collection = container.collectionRepository,
                     ) as T
                 }
             }

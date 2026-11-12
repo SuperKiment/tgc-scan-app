@@ -21,7 +21,7 @@ import org.tcgscan.app.data.backup.ImportMode
 import org.tcgscan.app.data.backup.ImportPreview
 import org.tcgscan.app.data.backup.ImportPreviewResult
 import org.tcgscan.app.data.backup.ImportResult
-import org.tcgscan.app.data.db.DbProvider
+import org.tcgscan.app.di.appContainer
 
 /**
  * Drives the backup screen: export to the document the user created, and a two-step import —
@@ -117,18 +117,15 @@ class BackupViewModel(
 
         private const val TAG = "BackupViewModel"
 
-        /**
-         * Ad-hoc wiring until the dependency container of T31 owns the database; [context] is only
-         * used to reach the application-scoped [DbProvider] and the content resolver.
-         */
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext
+            val container = context.appContainer
             return object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     require(modelClass.isAssignableFrom(BackupViewModel::class.java)) {
                         "BackupViewModel.factory asked for $modelClass"
                     }
-                    val db = DbProvider.get(appContext)
+                    val db = container.db
                     @Suppress("UNCHECKED_CAST")
                     return BackupViewModel(
                         exporter = BackupExporter(appContext, db),

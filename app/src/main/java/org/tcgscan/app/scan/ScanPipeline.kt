@@ -76,7 +76,7 @@ class ScanPipeline(
     private val sessions: ScanSessionRepository,
     /**
      * The packs the matcher may read, keyed by language. Called on the scan thread for each
-     * capture, so the provider is expected to hand back an already-open, cached map (T31).
+     * capture, so the provider is expected to hand back an already-open, cached map.
      */
     private val installedPacks: () -> Map<String, MatchPack>,
     private val converter: FrameConverter,

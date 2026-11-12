@@ -39,17 +39,16 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.opencv.core.CvException
 import org.tcgscan.app.data.AppPrefs
-import org.tcgscan.app.data.db.DbProvider
 import org.tcgscan.app.data.db.ScanDetectionState
 import org.tcgscan.app.data.pack.EmbeddingIndex
 import org.tcgscan.app.data.pack.InstalledPack
 import org.tcgscan.app.data.pack.InstalledPacksStore
 import org.tcgscan.app.data.pack.PackCatalog
 import org.tcgscan.app.data.pack.PackFormatException
+import org.tcgscan.app.di.appContainer
 import org.tcgscan.app.scan.ModelAsset
 import org.tcgscan.app.scan.OnnxEnv
 import org.tcgscan.app.scan.ScanEvent
-import org.tcgscan.app.scan.ScanPhotoStore
 import org.tcgscan.app.scan.ScanPipeline
 import org.tcgscan.app.scan.ScanSessionRepository
 import org.tcgscan.app.scan.match.MatchPack
@@ -72,6 +71,7 @@ class ScanViewModel(
     private val sessions: ScanSessionRepository,
     private val installedPacks: InstalledPacksStore,
     private val appPrefs: AppPrefs,
+    private val onnxEnv: OnnxEnv,
 ) : ViewModel() {
 
     private val packCache = MatchPackCache(appContext)
@@ -123,18 +123,18 @@ class ScanViewModel(
         if (pipeline != null || opening?.isActive == true) return
         _state.update { it.copy(engineFailed = false) }
         opening = viewModelScope.launch {
-            val env = OnnxEnv(appContext)
             val opened = try {
                 // Not cancellable: a pipeline that finished opening must be handed over or
                 // released here, never dropped with its native buffers.
                 withContext(NonCancellable + Dispatchers.Default) {
-                    ScanPipeline.open(appContext, env, sessions, packCache::current)
+                    ScanPipeline.open(appContext, onnxEnv, sessions, packCache::current)
                 }
             } catch (e: Exception) {
                 // ORT, the asset extraction and the native OCR setup all fail with different types;
                 // the screen only needs to know that scanning is unavailable.
                 Log.e(TAG, "The scan pipeline could not be opened", e)
-                env.close()
+                // The shared environment is not closed: a failed open leaves no session behind
+                // (the embedder is the only stage that opens one eagerly) and the next start retries.
                 _state.update { it.copy(engineFailed = true) }
                 return@launch
             }
@@ -356,28 +356,21 @@ class ScanViewModel(
         /** Releases native resources after the ViewModel scope is gone. */
         private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-        /**
-         * Ad-hoc wiring until the dependency container of T31 owns the database, the packs and the
-         * ORT environment.
-         */
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext
+            val container = context.appContainer
             return object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     require(modelClass.isAssignableFrom(ScanViewModel::class.java)) {
                         "ScanViewModel.factory asked for $modelClass"
                     }
-                    val db = DbProvider.get(appContext)
                     @Suppress("UNCHECKED_CAST")
                     return ScanViewModel(
                         appContext = appContext,
-                        sessions = ScanSessionRepository(
-                            sessions = db.scanSessionDao(),
-                            ownership = db.ownershipDao(),
-                            photos = ScanPhotoStore(appContext),
-                        ),
-                        installedPacks = InstalledPacksStore(appContext),
-                        appPrefs = AppPrefs(appContext),
+                        sessions = container.scanSessionRepository,
+                        installedPacks = container.installedPacksStore,
+                        appPrefs = container.appPrefs,
+                        onnxEnv = container.onnxEnv,
                     ) as T
                 }
             }
@@ -426,7 +419,7 @@ data class ScanUiState(
 
 /**
  * The matcher's view of the installed packs: one open [MatchPack] per language, refreshed when the
- * installed-packs store changes. Local to the scan screen until T31 moves it into the container.
+ * installed-packs store changes. Local to the scan screen: it holds native SQLite handles closed with the ViewModel.
  *
  * Threading: [refresh] runs on a background thread, [current] on the scan thread, once per capture.
  * A pack that leaves the cache is *retired*, not closed, because the capture in flight may still be

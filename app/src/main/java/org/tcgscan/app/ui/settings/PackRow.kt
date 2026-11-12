@@ -15,6 +15,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import java.util.Locale
@@ -270,20 +271,21 @@ internal fun manifestFailureText(reason: ManifestResult.Failure): String = when 
 }
 
 /**
- * Human-readable size in French units (`o`, `Ko`, `Mo`, `Go`), 1024-based. Pack sizes are the only
- * byte counts the UI shows, and they must be readable before a download starts (FR-23).
+ * Human-readable size, 1024-based, with the units of `R.array.byte_units` (`o`, `Ko`, `Mo`, `Go` in
+ * French). Pack sizes are the only byte counts the UI shows, and they must be readable before a
+ * download starts (FR-23).
  */
+@Composable
 internal fun formatBytes(bytes: Long): String {
-    if (bytes < BYTES_PER_UNIT) return "$bytes o"
+    val units = stringArrayResource(R.array.byte_units)
+    if (bytes < BYTES_PER_UNIT) return "$bytes ${units[0]}"
     var value = bytes.toDouble() / BYTES_PER_UNIT
-    var unit = 0
-    while (value >= BYTES_PER_UNIT && unit < UNITS.lastIndex) {
+    var unit = 1
+    while (value >= BYTES_PER_UNIT && unit < units.lastIndex) {
         value /= BYTES_PER_UNIT
         unit++
     }
-    return String.format(Locale.getDefault(), "%.1f %s", value, UNITS[unit])
+    return String.format(Locale.getDefault(), "%.1f %s", value, units[unit])
 }
 
 private const val BYTES_PER_UNIT = 1024
-
-private val UNITS = arrayOf("Ko", "Mo", "Go")

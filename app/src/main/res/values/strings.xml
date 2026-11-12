@@ -7,6 +7,17 @@
 
     <string name="app_name" translatable="false">TCG Scan</string>
 
+    <!-- Shared actions -->
+    <string name="action_back">Retour</string>
+
+    <!-- Byte units (1024-based), smallest first -->
+    <string-array name="byte_units">
+        <item>o</item>
+        <item>Ko</item>
+        <item>Mo</item>
+        <item>Go</item>
+    </string-array>
+
     <!-- Bottom navigation -->
     <string name="nav_scan">Scanner</string>
     <string name="nav_collection">Collection</string>
@@ -40,7 +51,6 @@
     <string name="backup_export_json">Exporter en JSON (restaurable)</string>
     <string name="backup_export_csv">Exporter les possessions en CSV</string>
     <string name="backup_import_json">Importer une sauvegarde JSON</string>
-    <string name="backup_action_back">Retour</string>
     <string name="backup_action_merge">Fusionner</string>
     <string name="backup_action_replace">Remplacer</string>
     <string name="backup_action_cancel">Annuler</string>
@@ -60,7 +70,6 @@
     <string name="backup_import_failed">Import interrompu. Aucune modification.</string>
 
     <!-- Catalogue: search, set list, owned badge (FR-14, T17) -->
-    <string name="catalog_action_back">Retour</string>
     <string name="catalog_search_hint">Nom ou numéro</string>
     <string name="catalog_search_clear">Effacer la recherche</string>
     <string name="catalog_no_pack">Aucun pack installé. Installez un pack de langue depuis les réglages pour parcourir le catalogue.</string>
@@ -135,7 +144,6 @@
     <string name="lists_error_write">Action impossible. Aucune modification.</string>
 
     <!-- One list: its cards, resolved through the pack (FR-16/FR-18, T19) -->
-    <string name="list_detail_action_back">Retour</string>
     <string name="list_detail_action_remove">Retirer de la liste</string>
     <string name="list_detail_wishlist_hint">Une carte validée comme possédée sort automatiquement de cette liste.</string>
     <string name="list_detail_empty">Cette liste est vide. Ajoutez des cartes depuis le catalogue ou une fiche carte.</string>
@@ -219,12 +227,21 @@
     <string name="settings_message_image_cache_cleared">Cache d\'images vidé.</string>
 
     <!-- About screen: the FR-29 mentions, the licences and the configured repository (D13) -->
-    <string name="action_back">Retour</string>
     <string name="about_fan_notice">Projet de fan non affilié à Nintendo, The Pokémon Company ou Creatures. Pokémon et les noms des cartes sont des marques de leurs propriétaires respectifs.</string>
     <string name="about_data_source">Données des cartes fournies par TCGdex. Les visuels sont chargés à la demande depuis TCGdex et ne sont jamais redistribués dans l\'application ni dans les packs.</string>
     <string name="about_licence_title">Licence</string>
     <string name="about_licence_body">TCG Scan est distribué sous licence GPL-3.0 (GNU General Public License v3.0 only).</string>
     <string name="about_licences_title">Licences des dépendances et des modèles</string>
+    <string name="about_licence_item_app" translatable="false">TCG Scan</string>
+    <string name="about_licence_item_dinov2" translatable="false">facebook/dinov2-small (export ONNX int8)</string>
+    <string name="about_licence_item_ocr">PP-OCRv4 / PP-OCRv3 + dictionnaires PaddleOCR</string>
+    <string name="about_licence_item_onnx" translatable="false">ONNX Runtime Android 1.31.1</string>
+    <string name="about_licence_item_opencv" translatable="false">OpenCV 4.12.0</string>
+    <string name="about_licence_item_androidx" translatable="false">AndroidX (Compose, CameraX, Room, DataStore, Lifecycle, Navigation)</string>
+    <string name="about_licence_item_kotlin" translatable="false">Kotlin, kotlinx.coroutines, kotlinx.serialization</string>
+    <string name="about_licence_item_okhttp" translatable="false">OkHttp 4.12.0</string>
+    <string name="about_licence_item_coil" translatable="false">Coil 2.7.0</string>
+    <string name="about_licence_item_tcgdex">Données des cartes : TCGdex (tcgdex.dev)</string>
     <string name="about_licences_summary">Détail complet, sources et empreintes SHA-256 dans docs/models.md du dépôt.</string>
     <string name="about_repo_title">Dépôt de publication</string>
     <string name="about_repo_placeholder_warning">Le dépôt de publication vaut encore %1$s. Renseignez le dépôt réel pour activer le téléchargement des packs.</string>

@@ -8,8 +8,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import org.tcgscan.app.R
 
 /**
- * Builds and owns the single [AppDatabase] instance. The dependency container of T31 hands this
- * instance around; nothing else may open the file.
+ * Builds and owns the single [AppDatabase] instance. `AppContainer` is its only caller and hands
+ * the instance around; nothing else may open the file.
  */
 object DbProvider {
 

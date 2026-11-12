@@ -6,7 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import coil.Coil
+import coil.ImageLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,7 +19,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.tcgscan.app.AppConfig
 import org.tcgscan.app.data.AppPrefs
-import org.tcgscan.app.data.db.DbProvider
 import org.tcgscan.app.data.db.OwnershipDao
 import org.tcgscan.app.data.net.ManifestResult
 import org.tcgscan.app.data.net.PackManifest
@@ -29,6 +28,7 @@ import org.tcgscan.app.data.pack.PackRemovalResult
 import org.tcgscan.app.data.pack.PackRepository
 import org.tcgscan.app.data.pack.PackStatus
 import org.tcgscan.app.data.pack.PackUpdateResult
+import org.tcgscan.app.di.appContainer
 import org.tcgscan.app.ui.image.ImageLoaderProvider
 
 /**
@@ -41,10 +41,10 @@ import org.tcgscan.app.ui.image.ImageLoaderProvider
  * No outcome is surfaced as an exception: the UI renders [PackInstallState] and [SettingsMessage].
  */
 class SettingsViewModel(
-    private val appContext: Context,
-    private val prefs: AppPrefs = AppPrefs(appContext),
-    private val packs: PackRepository = PackRepository(appContext),
-    private val ownership: OwnershipDao = DbProvider.get(appContext).ownershipDao(),
+    private val prefs: AppPrefs,
+    private val packs: PackRepository,
+    private val ownership: OwnershipDao,
+    private val imageLoader: ImageLoader,
 ) : ViewModel() {
 
     private val installStates = MutableStateFlow<Map<String, PackInstallState>>(emptyMap())
@@ -166,7 +166,7 @@ class SettingsViewModel(
     fun clearImageCache() {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                ImageLoaderProvider.clear(Coil.imageLoader(appContext))
+                ImageLoaderProvider.clear(imageLoader)
             }
             screen.update { it.copy(message = SettingsMessage.ImageCacheCleared) }
         }
@@ -229,13 +229,18 @@ class SettingsViewModel(
 
         private const val STOP_TIMEOUT_MILLIS = 5_000L
 
-        /**
-         * T31 replaces this with the application-wide `AppContainer`; until then the screen builds
-         * its own repository over the process-wide DataStore and Room singletons.
-         */
         fun factory(context: Context): ViewModelProvider.Factory {
-            val app = context.applicationContext
-            return viewModelFactory { initializer { SettingsViewModel(app) } }
+            val container = context.appContainer
+            return viewModelFactory {
+                initializer {
+                    SettingsViewModel(
+                        prefs = container.appPrefs,
+                        packs = container.packRepository,
+                        ownership = container.db.ownershipDao(),
+                        imageLoader = container.imageLoader,
+                    )
+                }
+            }
         }
     }
 }

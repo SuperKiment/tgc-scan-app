@@ -88,7 +88,7 @@ fun BackupRoute(nav: NavController) {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                            contentDescription = stringResource(R.string.backup_action_back),
+                            contentDescription = stringResource(R.string.action_back),
                         )
                     }
                 },

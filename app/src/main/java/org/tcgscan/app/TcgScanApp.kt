@@ -1,17 +1,22 @@
 package org.tcgscan.app
 
 import android.app.Application
+import coil.ImageLoader
+import coil.ImageLoaderFactory
 import org.opencv.android.OpenCVLoader
+import org.tcgscan.app.di.AppContainer
 
 /**
  * Application entry point.
  *
- * The only process-wide initialisation it carries today is OpenCV: card detection, perspective
- * correction, every resize of the embedding contract (D6) and the PP-OCR post-processing all go
- * through the native library, so nothing in the scan flow works until it is loaded. The hand-rolled
- * dependency container arrives with T31.
+ * It loads OpenCV — card detection, perspective correction, every resize of the embedding contract
+ * (D6) and the PP-OCR post-processing all go through the native library, so nothing in the scan
+ * flow works until it is loaded — and owns the [AppContainer]. It is also Coil's
+ * [ImageLoaderFactory], so every `AsyncImage` shares the container's bounded loader (FR-25).
  */
-class TcgScanApp : Application() {
+class TcgScanApp : Application(), ImageLoaderFactory {
+
+    val container: AppContainer by lazy { AppContainer(this) }
 
     override fun onCreate() {
         super.onCreate()
@@ -23,4 +28,6 @@ class TcgScanApp : Application() {
             "OpenCV native library (opencv_java4) failed to load; the APK does not match this device's ABI"
         }
     }
+
+    override fun newImageLoader(): ImageLoader = container.imageLoader
 }

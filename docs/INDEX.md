@@ -25,6 +25,7 @@ Ranges are deliberately not copied here: they went stale. Each file's index is r
 - [pack-format.md](pack-format.md) — pack and manifest format, embedding contract, 2 % release guard.
 - [models.md](models.md) — shipped ML models: sources, sizes, sha256, licences.
 - [benchmark.md](benchmark.md) — measured accuracy and latency.
+- [manual-debug.md](manual-debug.md) — manual test checklist: APK install, pushing a local pack, one step per deferred AC (AC-5 to AC-19), EC-1 to EC-5.
 - [plans/tcg-scan-v1.md](plans/tcg-scan-v1.md) — v1 implementation plan (tasks T1 to T31) from the previous workflow; task statuses are stale.
 - `../SPEC.md` (repository root) — v1 specification.
 
