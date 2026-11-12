@@ -1,0 +1,76 @@
+# Builds the FR and JA language packs and publishes them to a GitHub Release (FR-21, FR-22).
+#
+# Secrets: none beyond the automatic GITHUB_TOKEN (contents: write below).
+#
+# All-or-nothing: the build step fails (non-zero exit, empty dist/) when the 2 % guard closes, and the
+# publish step only runs `if: success()`, so a failed guard publishes nothing and the previous release
+# stays in place.
+#
+# TCGSCAN_REPO is mandatory: without it the guard has no previous manifest to compare with and is
+# silently skipped (the app downloads from releases/latest/download/).
+#
+# The app resolves packs through the repository's *latest* release. This release is therefore marked
+# latest, and release-apk.yml never marks its own releases as latest.
+name: packs
+
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: packs
+  cancel-in-progress: false
+
+jobs:
+  build-packs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pipeline dependencies
+        run: python -m pip install -r pipeline/requirements.txt
+
+      - name: Compute cache and release identifiers
+        id: ids
+        run: |
+          echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore embedding and image caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            pipeline/.cache/embeddings.sqlite
+            pipeline/.cache/images
+          key: packs-${{ hashFiles('pipeline/requirements.txt') }}-${{ steps.ids.outputs.week }}
+          restore-keys: |
+            packs-${{ hashFiles('pipeline/requirements.txt') }}-
+            packs-
+
+      - name: Fetch ONNX models
+        run: bash tools/fetch_models.sh
+
+      - name: Build packs and manifest
+        working-directory: pipeline
+        env:
+          TCGSCAN_REPO: ${{ github.repository }}
+        run: python -m tcgscan_pipeline build --langs fr,ja --out ../dist
+
+      - name: Publish release
+        if: success()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: packs-${{ steps.ids.outputs.date }}
+          name: Packs ${{ steps.ids.outputs.date }}
+          files: dist/*
+          make_latest: "true"
+          fail_on_unmatched_files: true
