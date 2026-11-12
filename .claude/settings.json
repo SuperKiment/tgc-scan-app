@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docs/mdx:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/reindex-md.sh\"",
+            "timeout": 30,
+            "statusMessage": "Reindexing .md..."
+          }
+        ]
+      }
+    ]
+  }
+}

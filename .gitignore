@@ -39,3 +39,4 @@ app/src/main/assets/models/*
 
 # OS
 .DS_Store
+docs/current-task/
