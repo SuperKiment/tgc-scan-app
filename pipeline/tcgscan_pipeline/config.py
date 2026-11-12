@@ -68,6 +68,20 @@ MANIFEST_SCHEMA = 1
 MAX_CARD_LOSS_RATIO = 0.02
 """A language losing more than 2 % of its cards against the published manifest fails the gate."""
 
+# --- Published manifest (docs/pack-format.md §6) ---------------------------------------------
+
+MANIFEST_FILENAME = "manifest.json"
+"""Release asset name of the manifest, in ``dist/`` and under ``releases/latest/download/``."""
+
+REPO_ENV_VAR = "TCGSCAN_REPO"
+"""Environment variable holding the ``owner/repo`` whose latest release the guard compares with."""
+
+GITHUB_REPO_PLACEHOLDER = "CHANGE-ME-OWNER/tcg-scan-app"
+"""Same placeholder as ``AppConfig.GITHUB_REPO_PLACEHOLDER``; nothing can be published to it."""
+
+RELEASE_DOWNLOAD_URL_TEMPLATE = "https://github.com/{repo}/releases/latest/download/{file}"
+"""Plain redirect to a release asset: no GitHub API, no token, no rate limit."""
+
 # --- Paths -----------------------------------------------------------------------------------
 
 PIPELINE_ROOT = Path(__file__).resolve().parent.parent

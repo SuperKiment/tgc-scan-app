@@ -35,11 +35,19 @@ python3 -m tcgscan_pipeline build --langs fr,ja --out ../dist
 | command | what it does |
 |---|---|
 | `python3 -m tcgscan_pipeline.tcgdex --probe fr` | smoke-probes the API and prints the series count of a language |
-| `python3 -m tcgscan_pipeline build [--langs fr,ja] [--out dist] [--max-sets N] [--en-image-fallback]` | full run: crawl → images → embed → pack → manifest → guard |
+| `python3 -m tcgscan_pipeline build [--langs fr,ja] [--out dist] [--max-sets N] [--en-image-fallback] [--previous-manifest FILE]` | full run: crawl → images → embed → pack → manifest → guard |
 
 The build is **all-or-nothing** (FR-22): either every requested pack *and* `manifest.json` land in
 the output directory, or it is left empty and the process exits non-zero, so the previously
 published release stays in place.
+
+Packs and manifest are first written to a private staging directory next to `--out`, and moved
+into it, manifest last, only once the 2 % guard (`guard.py`) opens. The guard compares with the
+manifest of the latest release of `TCGSCAN_REPO`, or with the local file given by
+`--previous-manifest` (dry runs of the guard). It closes when a language loses more than 2 % of its
+cards, when a language of the previous manifest is not rebuilt (so `--langs fr` alone is refused
+once a `ja` pack is published), or when TCGdex stayed unavailable. `--out` is emptied of earlier
+`pack-*.db.gz` and `manifest.json` at the start of every run.
 
 `--max-sets N` limits the crawl to the first N sets per language — the cheap way to dry-run the
 whole chain without pulling ~20 000 cards.
@@ -54,7 +62,9 @@ whole chain without pulling ~20 000 cards.
 | `images.py` | `{image}/low.webp` download into the image cache |
 | `embed.py`, `embed_cache.py` | DINOv2-small int8 embedding and its cross-run SQLite cache |
 | `packbuild.py` | the gzipped SQLite pack |
-| `manifest.py`, `guard.py`, `cli.py` | `manifest.json`, the release gate and the entry point |
+| `manifest.py` | writes `manifest.json` (validated with the app's own rules), reads the previously published one (404 tolerated) |
+| `guard.py` | the release gate: 2 % card loss, missing pack, TCGdex unavailable |
+| `cli.py`, `__main__.py` | the `build` command: staging, gate, all-or-nothing publication into `--out` |
 
 ## Rate limiting and caches
 
@@ -76,4 +86,4 @@ Deleting either only costs time. No image byte ever enters a pack.
 
 | variable | meaning |
 |---|---|
-| `TCGSCAN_REPO` | `owner/repo` used to fetch the previously published `manifest.json` for the 2 % guard; defaults to the placeholder of `AppConfig.GITHUB_REPO` |
+| `TCGSCAN_REPO` | `owner/repo` used to fetch the previously published `manifest.json` for the 2 % guard; defaults to the placeholder of `AppConfig.GITHUB_REPO`; while it is the placeholder, no manifest is fetched and the guard is not applied (a warning says so) |
