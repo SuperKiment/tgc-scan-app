@@ -163,7 +163,7 @@ class CardQuadDetector : AutoCloseable {
             grey
         }
         return FrameDetection(
-            outcome = outcomeOf(findQuads(work, upscale = 1.0 / scale)),
+            outcome = outcomeOf(findQuads(work, upscale = 1.0 / scale, frameWidth = width, frameHeight = height)),
             blurScore = laplacianVariance(work),
             meanLuma = Core.mean(work).`val`[0],
             frameWidth = width,
@@ -188,7 +188,12 @@ class CardQuadDetector : AutoCloseable {
         else -> QuadOutcome.Multiple(quads)
     }
 
-    private fun findQuads(work: Mat, upscale: Double): List<CardQuad> {
+    private fun findQuads(
+        work: Mat,
+        upscale: Double,
+        frameWidth: Int,
+        frameHeight: Int,
+    ): List<CardQuad> {
         Imgproc.GaussianBlur(work, blurred, Size(GAUSSIAN_KERNEL, GAUSSIAN_KERNEL), 0.0)
         Imgproc.Canny(blurred, edges, CANNY_LOW_THRESHOLD, CANNY_HIGH_THRESHOLD)
 
@@ -222,7 +227,7 @@ class CardQuadDetector : AutoCloseable {
             approximation.release()
             contours.forEach { it.release() }
         }
-        return largestDistinct(candidates, work)
+        return largestDistinct(candidates, frameWidth, frameHeight)
     }
 
     /**
@@ -230,9 +235,13 @@ class CardQuadDetector : AutoCloseable {
      * normally yields one contour per card, but a thick border or a glare edge can produce a second
      * nearly identical quad, which must not be reported as two cards (EC-5).
      */
-    private fun largestDistinct(candidates: List<CardQuad>, work: Mat): List<CardQuad> {
+    private fun largestDistinct(
+        candidates: List<CardQuad>,
+        frameWidth: Int,
+        frameHeight: Int,
+    ): List<CardQuad> {
         if (candidates.size <= 1) return candidates
-        val minSeparation = hypot(work.cols().toDouble(), work.rows().toDouble()) *
+        val minSeparation = hypot(frameWidth.toDouble(), frameHeight.toDouble()) *
             MIN_CENTER_SEPARATION_FRACTION
         val kept = ArrayList<CardQuad>(candidates.size)
         for (quad in candidates.sortedByDescending { it.width * it.height }) {

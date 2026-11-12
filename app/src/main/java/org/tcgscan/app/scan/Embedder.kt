@@ -5,7 +5,6 @@ import ai.onnxruntime.OrtSession
 import org.opencv.core.Mat
 import java.io.Closeable
 import java.nio.FloatBuffer
-import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /**
@@ -68,13 +67,6 @@ class Embedder private constructor(
         }
     }
 
-    /**
-     * The int8 form of [embed], encoded exactly like `embeddings.vec` in a pack
-     * (`docs/pack-format.md` §3.3). Debug and diagnostics only — matching works on the float vector
-     * and quantises it inside `EmbeddingIndex`.
-     */
-    fun embedQuantized(cardRgb: Mat): ByteArray = quantize(embed(cardRgb))
-
     /** Returns the session to [OnnxEnv]; the instance must not be used afterwards. */
     override fun close() {
         env.closeSession(session)
@@ -88,26 +80,12 @@ class Embedder private constructor(
         /** `last_hidden_state` is `(1, tokens, DIM)`. */
         private const val OUTPUT_RANK = 3
 
-        /** int8 scale of `embeddings.vec`: `round(v * 127)`, clipped (`docs` §3.3). */
-        private const val INT8_SCALE = 127
-
         /** Below this norm the CLS token carries no direction worth normalising. */
         private const val MIN_NORM = 1e-6
 
         /** Opens the embedder over [ModelAsset.EMBED_DINOV2S_INT8], the only model it ever reads. */
         fun open(env: OnnxEnv): Embedder =
             Embedder(env, env.createSession(ModelAsset.EMBED_DINOV2S_INT8))
-
-        /**
-         * Encodes an L2-normalised vector the way the pack builder does, so the integer dot product
-         * of two encoded vectors divided by `127²` is their cosine (`docs` §3.3).
-         */
-        fun quantize(vector: FloatArray): ByteArray {
-            require(vector.size == DIM) { "Expected a $DIM-length vector, got ${vector.size}" }
-            return ByteArray(DIM) { i ->
-                (vector[i] * INT8_SCALE).roundToInt().coerceIn(-INT8_SCALE, INT8_SCALE).toByte()
-            }
-        }
 
         /** L2-normalises [vector] in place and returns it; zeroes it when it has no direction. */
         private fun normalize(vector: FloatArray): FloatArray {

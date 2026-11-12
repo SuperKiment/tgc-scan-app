@@ -1,7 +1,9 @@
 package org.tcgscan.app.scan
 
 import android.util.Log
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -106,11 +108,15 @@ class ScanSessionRepository(
         )
         val detectionId = sessions.insertDetection(row)
         // The photo is named after its row, so it can only be written once the row exists; its path
-        // is then stored by a second write. Both happen before the capture is reported, so a
-        // detection is never visible without its persisted photo (EC-13).
-        val photoPath = cardRgb?.let { photos.save(sessionId, detectionId, it) }
-        if (photoPath != null) {
-            sessions.updateDetection(row.copy(id = detectionId, photoPath = photoPath))
+        // is then stored by a second write. That pair is shielded from cancellation, so a cancelled
+        // frame cannot leave a row without its photo path or an orphan JPEG. A process kill between
+        // the two writes still can: the row then keeps a null photoPath (EC-13).
+        if (cardRgb != null) {
+            withContext(NonCancellable) {
+                photos.save(sessionId, detectionId, cardRgb)?.let { path ->
+                    sessions.updateDetection(row.copy(id = detectionId, photoPath = path))
+                }
+            }
         }
         return detectionId
     }

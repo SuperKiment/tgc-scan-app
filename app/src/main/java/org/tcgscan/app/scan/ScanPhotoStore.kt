@@ -95,8 +95,9 @@ class ScanPhotoStore(context: Context) {
      * @return true when the file is gone, which includes the case where it was already absent.
      */
     fun delete(photoPath: String): Boolean {
-        val file = File(photoPath)
-        if (!file.path.startsWith(scanRoot().path + File.separator)) {
+        // Canonical on both sides, so a `..` segment or a symlink cannot slip past the prefix check.
+        val file = File(photoPath).canonicalFile
+        if (!file.path.startsWith(scanRoot().canonicalFile.path + File.separator)) {
             Log.w(TAG, "Refusing to delete $photoPath, which is not a scan photo")
             return false
         }

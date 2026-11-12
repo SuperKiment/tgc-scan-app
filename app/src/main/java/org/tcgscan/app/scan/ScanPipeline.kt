@@ -5,6 +5,8 @@ import android.util.Log
 import androidx.camera.core.ImageProxy
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.opencv.core.Mat
 import org.tcgscan.app.scan.detect.CameraFrame
@@ -89,6 +91,13 @@ class ScanPipeline(
         Executors.newSingleThreadExecutor { runnable -> Thread(runnable, THREAD_NAME) }
             .asCoroutineDispatcher()
 
+    /**
+     * Serialises [analyse], [resumeSession] and [endSession]: Room suspends inside a capture and
+     * frees the scan thread, so without it a resume or an end could interleave with a capture
+     * half-way and the late session id would rebind an ended session.
+     */
+    private val stateLock = Mutex()
+
     @Volatile
     private var sessionId: Long? = null
 
@@ -112,26 +121,24 @@ class ScanPipeline(
     suspend fun onFrame(image: ImageProxy, sessionLang: String): ScanEvent {
         require(sessionLang.isNotBlank()) { "A scan session needs a default language" }
         check(!closed) { "ScanPipeline is closed" }
-        return withContext(dispatcher) {
-            try {
-                analyse(image, sessionLang)
-            } catch (e: IllegalArgumentException) {
-                Log.w(TAG, "Unusable frame skipped", e)
-                ScanEvent.Idle
-            }
-        }
+        return withContext(dispatcher) { stateLock.withLock { analyse(image, sessionLang) } }
     }
 
     /**
      * Writes the next captures to [sessionId] instead of a new session — the « reprendre » of the
      * resume banner (EC-13). Call it before the camera starts.
+     *
+     * Known limitation (EC-9): the duplicate tracker is cleared, so a card captured before the
+     * resume is not recognised as a repeat afterwards.
      */
     suspend fun resumeSession(sessionId: Long) {
         require(sessionId > 0L) { "Invalid session id $sessionId" }
         withContext(dispatcher) {
-            this@ScanPipeline.sessionId = sessionId
-            stabilizer.reset()
-            dedup.clear()
+            stateLock.withLock {
+                this@ScanPipeline.sessionId = sessionId
+                stabilizer.reset()
+                dedup.clear()
+            }
         }
     }
 
@@ -141,9 +148,11 @@ class ScanPipeline(
      */
     suspend fun endSession() {
         withContext(dispatcher) {
-            sessionId = null
-            stabilizer.reset()
-            dedup.clear()
+            stateLock.withLock {
+                sessionId = null
+                stabilizer.reset()
+                dedup.clear()
+            }
         }
     }
 
@@ -163,9 +172,22 @@ class ScanPipeline(
         dispatcher.close()
     }
 
-    private suspend fun analyse(image: ImageProxy, sessionLang: String): ScanEvent =
-        converter.convert(image).use { frame ->
-            val detection = detector.detect(frame.grey)
+    private suspend fun analyse(image: ImageProxy, sessionLang: String): ScanEvent {
+        // Only the converter and the detector reject a frame with an IllegalArgumentException; any
+        // other one, from the recording or the warp, is a bug and must not be hidden as Idle.
+        val frame = try {
+            converter.convert(image)
+        } catch (e: IllegalArgumentException) {
+            Log.w(TAG, "Unusable frame skipped", e)
+            return ScanEvent.Idle
+        }
+        return frame.use {
+            val detection = try {
+                detector.detect(frame.grey)
+            } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "Unusable frame skipped", e)
+                return ScanEvent.Idle
+            }
             // The quality gates come before the stabiliser on purpose: a frame that could not be
             // identified must neither advance the stability streak nor arm the cooldown, which
             // would block the card until it leaves the frame (FR-7/EC-7).
@@ -187,6 +209,7 @@ class ScanPipeline(
                 is StabilizerDecision.Settling, is StabilizerDecision.Blocked -> ScanEvent.Idle
             }
         }
+    }
 
     /** Identifies and persists one stabilised card. */
     private suspend fun capture(
@@ -240,7 +263,7 @@ class ScanPipeline(
     /**
      * The session the captures go to, opened on the first one with [sessionLang] as its default
      * language. Only ever called from the scan thread, which is also the only writer of the field
-     * besides [resumeSession].
+     * besides [resumeSession], and both hold [stateLock].
      */
     private suspend fun sessionId(sessionLang: String): Long =
         sessionId ?: sessions.startSession(sessionLang).also { sessionId = it }
