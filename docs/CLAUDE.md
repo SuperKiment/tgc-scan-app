@@ -43,7 +43,8 @@ All commands run from the repository root.
 - Temporary code: marker `TODO TEMP <ref>` (ref = ticket number or task name) so it can be found and removed before committing.
 
 ## Language
-- `.md` docs, exchanges and code comments: English.
+- Exchanges with the user: French.
+- `.md` docs and code comments: English.
 - Code (class, method, variable names, etc.): English.
 
 # What not to do
