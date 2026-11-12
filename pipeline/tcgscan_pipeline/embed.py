@@ -12,13 +12,16 @@ Unchanged cards are never re-embedded: :class:`~tcgscan_pipeline.embed_cache.Emb
 every vector by ``(card_id, lang, image_sha256, model_sha256)`` (FR-21).
 
 Cards without a visual in their own language yield no vector at all (``has_embed = 0``, FR-3),
-unless the optional EN fallback of D15/FR-4 is enabled — it is **off by default** and tags the
-rows it produces ``has_embed = 2`` so the app can refuse to pre-check them.
+unless an optional source is enabled, both **off by default**: the EN fallback of D15/FR-4 tags
+the rows it produces ``has_embed = 2`` so the app can refuse to pre-check them, while the Limitless
+TCG source of JA visuals (``--jp-extra-images``, :mod:`tcgscan_pipeline.limitless`) is the card's
+own JP print and so keeps ``has_embed = 1``.
 
 Dry runs:
 
     python -m tcgscan_pipeline.embed --image pipeline/.cache/images/fr/base1-1.webp
     python -m tcgscan_pipeline.embed --lang fr --set base1 --max-cards 2
+    python -m tcgscan_pipeline.embed --lang ja --set SM1M --max-cards 3 --jp-extra-images
 """
 
 from __future__ import annotations
@@ -43,6 +46,7 @@ from . import config
 from .catalog import CardRow, crawl_set
 from .embed_cache import EmbeddingCache
 from .images import ImageCache
+from .limitless import LIMITLESS_LANG, LimitlessSource
 from .tcgdex import TcgdexClient, TcgdexError, TcgdexNotFound
 
 log = logging.getLogger(__name__)
@@ -281,6 +285,8 @@ class EmbedResult:
     image_path: Path
     reused: bool
     """True when the vector came from the cross-run cache instead of an ONNX run (FR-21)."""
+    from_limitless: bool = False
+    """True when the visual is the Limitless TCG one of a JA card TCGdex has no image for."""
 
 
 class EnImageResolver:
@@ -339,7 +345,7 @@ class EnImageResolver:
 def _is_cached_visual(path: Path) -> bool:
     """True when ``path`` already holds a usable visual, by ``ImageCache``'s own rule.
 
-    Mirrors ``images._is_cached``, symlink rejection included: the cache tree comes back from
+    Mirrors ``images.is_cached``, symlink rejection included: the cache tree comes back from
     ``actions/cache``, so a symlink there counts as absent instead of being embedded through to
     wherever it points.
     """
@@ -358,6 +364,7 @@ def embed_card(
     images: ImageCache,
     cache: EmbeddingCache | None = None,
     en_resolver: EnImageResolver | None = None,
+    limitless: LimitlessSource | None = None,
 ) -> EmbedResult | None:
     """Embed one crawled card, reusing the caches, or return ``None`` when it has no visual.
 
@@ -369,10 +376,13 @@ def embed_card(
         cache: cross-run embedding cache (FR-21); ``None`` disables reuse.
         en_resolver: EN fallback (D15/FR-4). ``None`` — the default — means the fallback is off,
             so a card without its own visual simply gets no vector (``has_embed = 0``, FR-3).
+        limitless: Limitless TCG source, used only for ``ja`` cards TCGdex has no image for and
+            tried before the EN fallback. ``None`` — the default — means it is off. Its visual is
+            the card's own JP print, hence ``has_embed = 1``; it never raises.
 
     Returns:
-        The ``EmbedResult`` with ``has_embed = 1`` for the card's own visual and ``2`` for an EN
-        fallback one, or ``None`` when no visual could be obtained.
+        The ``EmbedResult`` with ``has_embed = 1`` for the card's own visual (TCGdex or Limitless)
+        and ``2`` for an EN fallback one, or ``None`` when no visual could be obtained.
 
     Raises:
         TcgdexUnavailable: a download or an EN lookup failed every attempt.
@@ -383,6 +393,18 @@ def embed_card(
 
     path = images.fetch(lang, card.card_id, card.image_url)
     has_embed = HAS_EMBED_OWN_IMAGE
+    if path is None and limitless is not None and lang == LIMITLESS_LANG:
+        visual = limitless.fetch(card, images)
+        if visual is not None:
+            try:
+                return _embed_path(
+                    card, lang, visual, HAS_EMBED_OWN_IMAGE, True, embedder=embedder, cache=cache
+                )
+            except EmbedError as exc:
+                # The source is optional: a bad file (e.g. cached by an earlier run) must neither
+                # abort the build nor stay in the cache; the card goes on to the next source.
+                log.warning("%s: Limitless visual unusable (%s); removed", card.card_id, exc)
+                visual.unlink(missing_ok=True)
     if path is None and en_resolver is not None and lang != EN_LANG:
         # The stem lookup is the only per-card request of the pipeline: FR-21 wants it skipped
         # whenever the EN visual of an earlier run is still cached, so the cache is read first.
@@ -394,7 +416,20 @@ def embed_card(
         has_embed = HAS_EMBED_EN_IMAGE
     if path is None:
         return None
+    return _embed_path(card, lang, path, has_embed, False, embedder=embedder, cache=cache)
 
+
+def _embed_path(
+    card: CardRow,
+    lang: str,
+    path: Path,
+    has_embed: int,
+    from_limitless: bool,
+    *,
+    embedder: Embedder,
+    cache: EmbeddingCache | None,
+) -> EmbedResult:
+    """Embed the visual at ``path`` through the cross-run cache (FR-21)."""
     image_sha256 = file_sha256(path)
     if cache is not None:
         cached = cache.get(card.card_id, lang, image_sha256)
@@ -405,13 +440,19 @@ def embed_card(
                 has_embed=has_embed,
                 image_path=path,
                 reused=True,
+                from_limitless=from_limitless,
             )
 
     vec = embedder.embed_int8(path)
     if cache is not None:
         cache.put(card.card_id, lang, image_sha256, vec)
     return EmbedResult(
-        card_id=card.card_id, vec=vec, has_embed=has_embed, image_path=path, reused=False
+        card_id=card.card_id,
+        vec=vec,
+        has_embed=has_embed,
+        image_path=path,
+        reused=False,
+        from_limitless=from_limitless,
     )
 
 
@@ -445,6 +486,12 @@ def _main(argv: list[str] | None = None) -> int:
         help="borrow the EN visual of a card that has none in its language (D15/FR-4, off by "
         "default); the rows it produces are tagged has_embed=2",
     )
+    parser.add_argument(
+        "--jp-extra-images",
+        action="store_true",
+        help="for a ja card TCGdex has no image for, use the Limitless TCG one (off by default); "
+        "the rows it produces are tagged has_embed=1",
+    )
     args = parser.parse_args(argv)
 
     if (args.image is None) == (args.lang is None and args.set is None):
@@ -458,7 +505,14 @@ def _main(argv: list[str] | None = None) -> int:
         embedder = Embedder()
         if args.image is not None:
             return _embed_one(embedder, args.image)
-        return _embed_set(embedder, args.lang, args.set, args.max_cards, args.en_image_fallback)
+        return _embed_set(
+            embedder,
+            args.lang,
+            args.set,
+            args.max_cards,
+            en_fallback=args.en_image_fallback,
+            jp_extra_images=args.jp_extra_images,
+        )
     except (EmbedError, TcgdexError) as exc:
         log.error("%s", exc)
         return 1
@@ -476,13 +530,21 @@ def _embed_one(embedder: Embedder, image: Path) -> int:
 
 
 def _embed_set(
-    embedder: Embedder, lang: str, set_id: str, max_cards: int | None, en_fallback: bool
+    embedder: Embedder,
+    lang: str,
+    set_id: str,
+    max_cards: int | None,
+    *,
+    en_fallback: bool,
+    jp_extra_images: bool,
 ) -> int:
     """Embed one crawled set through both caches and print one line per card."""
     crawled = crawl_set(lang, set_id)
     cards = crawled.cards if max_cards is None else crawled.cards[:max_cards]
     resolver = EnImageResolver() if en_fallback else None
+    limitless = LimitlessSource() if jp_extra_images else None
     embedded = 0
+    from_limitless = 0
     try:
         with EmbeddingCache(model_sha256=embedder.model_sha256) as cache, ImageCache() as images:
             for card in cards:
@@ -493,19 +555,27 @@ def _embed_set(
                     images=images,
                     cache=cache,
                     en_resolver=resolver,
+                    limitless=limitless,
                 )
                 if result is None:
                     print(f"{card.card_id}\thas_embed={HAS_EMBED_NONE}\tno-image")
                     continue
                 embedded += 1
+                from_limitless += int(result.from_limitless)
+                source = "limitless" if result.from_limitless else "tcgdex"
                 print(
-                    f"{result.card_id}\thas_embed={result.has_embed}\t"
+                    f"{result.card_id}\thas_embed={result.has_embed}\t{source}\t"
                     f"{'reused' if result.reused else 'computed'}\t{len(result.vec)} B"
                 )
-            print(f"{lang}/{set_id}: {embedded}/{len(cards)} cards embedded; {cache.summary()}")
+            print(
+                f"{lang}/{set_id}: {embedded}/{len(cards)} cards embedded "
+                f"({from_limitless} Limitless); {cache.summary()}"
+            )
     finally:
         if resolver is not None:
             resolver.close()
+        if limitless is not None:
+            limitless.close()
     return 0
 
 

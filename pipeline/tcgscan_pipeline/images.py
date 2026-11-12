@@ -61,10 +61,16 @@ _RETRYABLE_STATUS = frozenset({408, 425, 429, 500, 502, 503, 504, 520, 521, 522,
 _UNSAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 
 
-def image_path(lang: str, card_id: str, root: Path | None = None) -> Path:
-    """Return the cache path of one card's visual, without touching the filesystem."""
+def image_path(
+    lang: str, card_id: str, root: Path | None = None, suffix: str = IMAGE_FILE_SUFFIX
+) -> Path:
+    """Return the cache path of one card's visual, without touching the filesystem.
+
+    ``lang`` is only a cache directory key: a second image source uses a key of its own (and its
+    own ``suffix``) so that its files never collide with the TCGdex ones.
+    """
     return (root or config.IMAGE_CACHE_DIR) / _safe(lang, "lang") / (
-        _safe(card_id, "card_id") + IMAGE_FILE_SUFFIX
+        _safe(card_id, "card_id") + suffix
     )
 
 
@@ -124,9 +130,9 @@ class ImageCache:
 
     # --- cache -------------------------------------------------------------------------------
 
-    def path_for(self, lang: str, card_id: str) -> Path:
+    def path_for(self, lang: str, card_id: str, suffix: str = IMAGE_FILE_SUFFIX) -> Path:
         """Cache path of one card's visual in this cache's root."""
-        return image_path(lang, card_id, self.root)
+        return image_path(lang, card_id, self.root, suffix)
 
     def fetch_card(self, lang: str, card: CardRow) -> Path | None:
         """Cache the visual of a crawled :class:`~tcgscan_pipeline.catalog.CardRow`."""
@@ -153,7 +159,7 @@ class ImageCache:
             return None
 
         target = self.path_for(lang, card_id)
-        if _is_cached(target):
+        if is_cached(target):
             return target
 
         url = f"{image_url.rstrip('/')}{config.IMAGE_SUFFIX}"
@@ -219,7 +225,7 @@ class ImageCache:
                             # Not an image: the measured « no available server » plain text.
                             last_reason = f"body is not a WebP file ({len(payload)} B)"
                         else:
-                            self._store(target, payload)
+                            self.store(target, payload)
                             return target
             except requests.RequestException as exc:
                 last_reason = f"request failed: {exc}"
@@ -255,7 +261,7 @@ class ImageCache:
                 time.sleep(wait)
             self._last_request_at = time.monotonic()
 
-    def _store(self, target: Path, payload: bytes) -> None:
+    def store(self, target: Path, payload: bytes) -> None:
         """Write ``payload`` to ``target`` atomically, so a partial write is never mistaken for a
         cached visual.
 
@@ -281,11 +287,11 @@ class ImageCache:
             raise
 
 
-def _is_cached(target: Path) -> bool:
+def is_cached(target: Path) -> bool:
     """True when ``target`` already holds a usable visual.
 
     Only a non-empty **regular** file counts: the cache tree comes back from ``actions/cache``, so
-    a symlink there is treated as absent (and overwritten by :meth:`ImageCache._store`) instead of
+    a symlink there is treated as absent (and overwritten by :meth:`ImageCache.store`) instead of
     being read through to wherever it points.
     """
     try:

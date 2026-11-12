@@ -42,6 +42,28 @@ RETRY_BACKOFF_MAX_S = 30.0
 REQUEST_TIMEOUT_S = 30.0
 """Per-request socket/read timeout."""
 
+# --- Limitless TCG, optional extra source of JA visuals (docs/pack-format.md §4.9) ----------------
+
+LIMITLESS_PAGE_URL_TEMPLATE = "https://limitlesstcg.com/cards/jp/{code}"
+"""Set page of Limitless TCG; one request per set lists every card and its image URL."""
+
+LIMITLESS_SET_CODE_ALIASES: dict[str, str] = {"SV-P": "SVP", "M-P": "MP"}
+"""TCGdex JA set id -> Limitless set code, for the sets whose code differs. Any other set id is
+used as is."""
+
+LIMITLESS_USER_AGENT = "tcg-scan-app pack pipeline (open-source card catalogue builder, low rate)"
+
+LIMITLESS_MIN_REQUEST_INTERVAL_S = 1.0
+"""Minimum delay between two Limitless requests (page or image): a volunteer-run site."""
+
+LIMITLESS_MAX_RETRIES = 4
+"""Attempts per Limitless request. Fewer than TCGdex's: the source is optional, so a Limitless
+outage must cost seconds, not minutes, of a build."""
+
+LIMITLESS_MAX_RUN_SECONDS = 1800.0
+"""Wall-clock budget of one Limitless source, counted from its creation (the ja pack build in
+``build``). Once spent, the source switches itself off: the cards left stay without a visual."""
+
 # --- Embedding model (docs/models.md §1, docs/pack-format.md §3) ------------------------------
 
 EMBED_MODEL_ASSET = "embed_dinov2s_int8.onnx"
@@ -93,7 +115,8 @@ CACHE_DIR = PIPELINE_ROOT / ".cache"
 """Cross-run cache root; safe to delete, gitignored, cached by the CI workflow."""
 
 IMAGE_CACHE_DIR = CACHE_DIR / "images"
-"""Downloaded card visuals: ``<lang>/<card_id>.webp``."""
+"""Downloaded card visuals: ``<lang>/<card_id>.webp``, plus ``ja-limitless/<card_id>.png`` for the
+optional Limitless source."""
 
 EMBED_CACHE_DB = CACHE_DIR / "embeddings.sqlite"
 """Embedding cache keyed by ``(card_id, lang, image_sha256, model_sha256)``."""

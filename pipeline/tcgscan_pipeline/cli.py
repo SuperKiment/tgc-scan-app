@@ -1,7 +1,8 @@
 """Command line of the pack pipeline.
 
     python -m tcgscan_pipeline build [--langs fr,ja] [--out dist] [--max-sets N]
-                                     [--en-image-fallback] [--previous-manifest FILE]
+                                     [--en-image-fallback] [--jp-extra-images]
+                                     [--previous-manifest FILE]
 
 ``build`` runs crawl -> images -> embed -> pack (:func:`tcgscan_pipeline.packbuild.build_pack`, once
 per language), then writes ``manifest.json`` and passes the release gate
@@ -87,6 +88,12 @@ def _parser() -> argparse.ArgumentParser:
         "default); the rows it produces are tagged has_embed=2",
     )
     build.add_argument(
+        "--jp-extra-images",
+        action="store_true",
+        help="for a ja card TCGdex has no image for, use the Limitless TCG one (off by default, "
+        "optional: its failures never fail the build); the rows it produces are tagged has_embed=1",
+    )
+    build.add_argument(
         "--previous-manifest",
         type=Path,
         default=None,
@@ -126,6 +133,7 @@ def _run_build(args: argparse.Namespace) -> int:
             Path(args.out),
             max_sets=args.max_sets,
             en_image_fallback=args.en_image_fallback,
+            jp_extra_images=args.jp_extra_images,
             previous_manifest=args.previous_manifest,
         )
     except GuardError as exc:
@@ -155,6 +163,7 @@ def _build(
     *,
     max_sets: int | None,
     en_image_fallback: bool,
+    jp_extra_images: bool,
     previous_manifest: Path | None,
 ) -> None:
     """Build every pack, pass the gate, then publish into ``out_dir``; raise on any failure."""
@@ -171,7 +180,11 @@ def _build(
     staging = Path(tempfile.mkdtemp(prefix=f".{out.name}-staging-", dir=out.parent))
     try:
         built, unavailable = _build_packs(
-            langs, staging, max_sets=max_sets, en_image_fallback=en_image_fallback
+            langs,
+            staging,
+            max_sets=max_sets,
+            en_image_fallback=en_image_fallback,
+            jp_extra_images=jp_extra_images,
         )
         new_manifest = manifest.build_manifest(built)
         guard.check(previous, new_manifest, unavailable=unavailable)
@@ -202,7 +215,12 @@ def _previous(local_file: Path | None) -> dict[str, Any] | None:
 
 
 def _build_packs(
-    langs: tuple[str, ...], staging: Path, *, max_sets: int | None, en_image_fallback: bool
+    langs: tuple[str, ...],
+    staging: Path,
+    *,
+    max_sets: int | None,
+    en_image_fallback: bool,
+    jp_extra_images: bool,
 ) -> tuple[dict[str, PackBuild], list[str]]:
     """Build the pack of each language into ``staging``.
 
@@ -227,6 +245,7 @@ def _build_packs(
                     staging,
                     max_sets=max_sets,
                     en_image_fallback=en_image_fallback,
+                    jp_extra_images=jp_extra_images,
                     client=client,
                     embedder=embedder,
                     images=images,

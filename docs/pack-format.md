@@ -105,7 +105,7 @@ one bundled in its assets; such a pack must not be used for visual matching.
 | value | meaning | may be pre-checked after a scan? |
 |---|---|---|
 | `0` | no visual reference (no TCGdex image) — OCR-only card (FR-3) | **never** |
-| `1` | embedding computed from the image of this very card, in this language | yes, if the confidence policy agrees |
+| `1` | embedding computed from the image of this very card, in this language: the TCGdex image or, for a `ja` card TCGdex has none for, the Limitless TCG image (`--jp-extra-images`, §4.9, default off) | yes, if the confidence policy agrees |
 | `2` | embedding computed from the **EN** image of the same card id (`--en-image-fallback`, D15/FR-4, default off) | **never** (down-weighted) |
 
 A row has an `embeddings` entry if and only if `has_embed != 0`.
@@ -195,6 +195,20 @@ Base URL `https://api.tcgdex.net/v2`, one language at a time (`fr`, `ja`).
    `pipeline/.cache/embeddings.sqlite`, keyed by
    `(card_id, lang, image_sha256, model_sha256)`, so unchanged cards are never re-downloaded or
    re-embedded across runs (FR-21).
+9. Optional extra source of `ja` visuals, Limitless TCG (`--jp-extra-images`, default off). For a
+   `ja` card TCGdex has no image for, the pipeline reads the set page
+   `https://limitlesstcg.com/cards/jp/<CODE>` (one request per set, memoised; `<CODE>` is the
+   TCGdex set id, except `SV-P` → `SVP` and `M-P` → `MP`) and downloads the card's PNG (`_SM`
+   size, 274×381 px, the closest to TCGdex's `low.webp`). Cards are matched on `int(localId)`
+   (the Limitless number is not zero-padded). Images are cached as
+   `pipeline/.cache/images/ja-limitless/<card_id>.png`. The vector is tagged `has_embed = 1`: the
+   image is the JP print itself. Politeness: ≥ 1 s between two requests, a generic User-Agent, no
+   redirect followed; an image that does not decode is never cached, and the source switches
+   itself off after 3 failed requests in a row or 30 minutes of run time. The source is
+   **optional**: a missing page (about 64 JA sets have none), a
+   missing card or any network or parse failure only leaves the card without a visual
+   (`has_embed = 0`); it never fails the build nor counts toward the 2 % guard. The pack format is
+   unchanged and no image byte enters a pack.
 
 ---
 
