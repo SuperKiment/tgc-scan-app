@@ -1,33 +1,24 @@
 package org.tcgscan.app.ui.settings
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.emptyPreferences
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import coil.Coil
-import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.tcgscan.app.AppConfig
+import org.tcgscan.app.data.AppPrefs
 import org.tcgscan.app.data.db.DbProvider
 import org.tcgscan.app.data.db.OwnershipDao
 import org.tcgscan.app.data.net.ManifestResult
@@ -41,20 +32,6 @@ import org.tcgscan.app.data.pack.PackUpdateResult
 import org.tcgscan.app.ui.image.ImageLoaderProvider
 
 /**
- * The handful of user choices this screen owns. T21 introduces `data/AppPrefs.kt` for
- * `onboardingDone` + `defaultScanLang` and T31 folds this accessor into it; the DataStore file name
- * is deliberately distinct so the two never open the same file from two instances.
- *
- * `internal` so `ScanViewModel` reads the default scan language through this one delegate: a second
- * `preferencesDataStore("settings")` would crash at runtime. T31 removes the need.
- */
-internal val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(
-    name = "settings",
-)
-
-internal val KEY_DEFAULT_SCAN_LANG = stringPreferencesKey("default_scan_lang")
-
-/**
  * State and actions of the Settings screen: the default scan language (FR-5), the pack lifecycle —
  * install, update with the size announced *before* the download, removal with the EC-20 warning
  * (FR-23, FR-24) — and the bounded image cache (FR-25).
@@ -65,6 +42,7 @@ internal val KEY_DEFAULT_SCAN_LANG = stringPreferencesKey("default_scan_lang")
  */
 class SettingsViewModel(
     private val appContext: Context,
+    private val prefs: AppPrefs = AppPrefs(appContext),
     private val packs: PackRepository = PackRepository(appContext),
     private val ownership: OwnershipDao = DbProvider.get(appContext).ownershipDao(),
 ) : ViewModel() {
@@ -73,19 +51,12 @@ class SettingsViewModel(
     private val screen = MutableStateFlow(ScreenState())
     private val installJobs = mutableMapOf<String, Job>()
 
-    private val storedDefaultScanLang: Flow<String?> = appContext.settingsDataStore.data
-        .catch { cause ->
-            // An unreadable preferences file must not break the screen: fall back to « aucun choix ».
-            if (cause is IOException) emit(emptyPreferences()) else throw cause
-        }
-        .map { it[KEY_DEFAULT_SCAN_LANG] }
-
     val uiState: StateFlow<SettingsUiState> = combine(
         packs.installed,
         packs.latestManifest,
         installStates,
         screen,
-        storedDefaultScanLang,
+        prefs.defaultScanLang,
     ) { installed, manifest, states, screenState, storedLang ->
         SettingsUiState(
             defaultScanLang = effectiveDefaultScanLang(storedLang, installed.keys),
@@ -133,7 +104,7 @@ class SettingsViewModel(
     /** Language a scan session starts with when the OCR cannot tell (FR-5). */
     fun setDefaultScanLang(lang: String) {
         viewModelScope.launch {
-            appContext.settingsDataStore.edit { it[KEY_DEFAULT_SCAN_LANG] = lang }
+            prefs.setDefaultScanLang(lang)
         }
     }
 

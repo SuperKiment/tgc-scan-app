@@ -5,7 +5,6 @@ import android.content.Context
 import android.database.sqlite.SQLiteException
 import android.util.Log
 import androidx.camera.core.ImageProxy
-import androidx.datastore.preferences.core.emptyPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -26,7 +25,6 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
@@ -40,6 +38,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.opencv.core.CvException
+import org.tcgscan.app.data.AppPrefs
 import org.tcgscan.app.data.db.DbProvider
 import org.tcgscan.app.data.db.ScanDetectionState
 import org.tcgscan.app.data.pack.EmbeddingIndex
@@ -54,9 +53,7 @@ import org.tcgscan.app.scan.ScanPhotoStore
 import org.tcgscan.app.scan.ScanPipeline
 import org.tcgscan.app.scan.ScanSessionRepository
 import org.tcgscan.app.scan.match.MatchPack
-import org.tcgscan.app.ui.settings.KEY_DEFAULT_SCAN_LANG
 import org.tcgscan.app.ui.settings.SettingsViewModel
-import org.tcgscan.app.ui.settings.settingsDataStore
 
 /**
  * Drives the scan screen: owns the [ScanPipeline] while the screen is visible, feeds it the camera
@@ -74,6 +71,7 @@ class ScanViewModel(
     private val appContext: Context,
     private val sessions: ScanSessionRepository,
     private val installedPacks: InstalledPacksStore,
+    private val appPrefs: AppPrefs,
 ) : ViewModel() {
 
     private val packCache = MatchPackCache(appContext)
@@ -263,14 +261,8 @@ class ScanViewModel(
     }
 
     private fun observeSessionLang() {
-        val stored: Flow<String?> = appContext.settingsDataStore.data
-            .catch { cause ->
-                // An unreadable preferences file means « no choice made », as in Settings.
-                if (cause is IOException) emit(emptyPreferences()) else throw cause
-            }
-            .map { it[KEY_DEFAULT_SCAN_LANG] }
         viewModelScope.launch {
-            combine(loadedPacks.filterNotNull(), stored) { installed, storedLang ->
+            combine(loadedPacks.filterNotNull(), appPrefs.defaultScanLang) { installed, storedLang ->
                 installed to effectiveLang(storedLang, installed.keys)
             }.collect { (installed, lang) ->
                 sessionLang = lang
@@ -385,6 +377,7 @@ class ScanViewModel(
                             photos = ScanPhotoStore(appContext),
                         ),
                         installedPacks = InstalledPacksStore(appContext),
+                        appPrefs = AppPrefs(appContext),
                     ) as T
                 }
             }

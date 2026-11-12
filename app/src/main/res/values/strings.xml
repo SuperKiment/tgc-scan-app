@@ -304,4 +304,29 @@
     <string name="review_error_commit">Validation impossible. Rien n\'a été ajouté.</string>
     <string name="review_error_closed">Cette session est déjà clôturée. Rien n\'a été ajouté.</string>
 
+    <!-- Onboarding: fan-project notice, pack choice, download (T21) -->
+    <string name="onboarding_notice_title">Projet de fan non affilié</string>
+    <string name="onboarding_notice_body">TCG Scan est un projet de fan non affilié à Nintendo, The Pokémon Company ou Creatures. Pokémon et les noms des cartes sont des marques de leurs propriétaires respectifs. Les données des cartes sont fournies par TCGdex.</string>
+    <string name="onboarding_notice_privacy">L\'application fonctionne hors ligne : vos photos ne quittent jamais l\'appareil. Internet ne sert qu\'à télécharger les packs de langue.</string>
+    <string name="onboarding_action_continue">Continuer</string>
+    <string name="onboarding_choice_title">Choisissez vos packs</string>
+    <string name="onboarding_choice_hint">Un pack contient les cartes d\'une langue et de quoi les reconnaître. Choisissez-en au moins un ; vous pourrez en ajouter d\'autres plus tard dans les réglages.</string>
+    <string name="onboarding_choice_loading">Lecture du catalogue des packs…</string>
+    <string name="onboarding_choice_not_published">Pas encore publié.</string>
+    <string name="onboarding_choice_installed">Déjà installé</string>
+    <string name="onboarding_choice_pick_one">Cochez au moins un pack pour continuer.</string>
+    <string name="onboarding_action_download">Télécharger</string>
+    <string name="onboarding_action_skip">Continuer sans pack</string>
+    <string name="onboarding_skip_warning">Sans pack, le scan est désactivé. Vous pourrez installer un pack depuis les réglages.</string>
+    <string name="onboarding_offline_title">Pas de connexion</string>
+    <string name="onboarding_offline_body">Le premier lancement a besoin d\'internet pour télécharger un pack. Vérifiez votre connexion puis réessayez.</string>
+    <string name="onboarding_error_title">Catalogue indisponible</string>
+    <string name="onboarding_error_body">Impossible de lire le catalogue des packs : %1$s.</string>
+    <string name="onboarding_download_title">Téléchargement des packs</string>
+    <string name="onboarding_download_waiting">En attente</string>
+    <string name="onboarding_download_installed">Installé</string>
+    <string name="onboarding_download_done_title">Tout est prêt</string>
+    <string name="onboarding_download_done_body">Vos packs sont installés : vous pouvez scanner vos cartes.</string>
+    <string name="onboarding_action_start">Commencer</string>
+
 </resources>
