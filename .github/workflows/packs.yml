@@ -6,6 +6,9 @@
 # publish step only runs `if: success()`, so a failed guard publishes nothing and the previous release
 # stays in place.
 #
+# Caches (embeddings, images) are restored by prefix and saved with `if: always()` under a per-run key,
+# so a rerun after a failed build (e.g. TCGdex outage) resumes instead of restarting from zero.
+#
 # TCGSCAN_REPO is mandatory: without it the guard has no previous manifest to compare with and is
 # silently skipped (the app downloads from releases/latest/download/).
 #
@@ -46,13 +49,15 @@ jobs:
           echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
 
       - name: Restore embedding and image caches
-        uses: actions/cache@v4
+        id: cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             pipeline/.cache/embeddings.sqlite
             pipeline/.cache/images
-          key: packs-${{ hashFiles('pipeline/requirements.txt') }}-${{ steps.ids.outputs.week }}
+          key: packs-${{ hashFiles('pipeline/requirements.txt') }}-${{ steps.ids.outputs.week }}-${{ github.run_id }}
           restore-keys: |
+            packs-${{ hashFiles('pipeline/requirements.txt') }}-${{ steps.ids.outputs.week }}-
             packs-${{ hashFiles('pipeline/requirements.txt') }}-
             packs-
 
@@ -64,6 +69,16 @@ jobs:
         env:
           TCGSCAN_REPO: ${{ github.repository }}
         run: python -m tcgscan_pipeline build --langs fr,ja --out ../dist
+
+      # Saved even when the build fails so a rerun resumes from the partial cache.
+      - name: Save embedding and image caches
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            pipeline/.cache/embeddings.sqlite
+            pipeline/.cache/images
+          key: ${{ steps.cache.outputs.cache-primary-key }}
 
       - name: Publish release
         if: success()
