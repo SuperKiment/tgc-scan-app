@@ -1,0 +1,513 @@
+"""Visual embedding stage.
+
+Runs **the same ONNX file the app ships**, ``app/src/main/assets/models/embed_dinov2s_int8.onnx``
+(int8 export of ``facebook/dinov2-small``), with the preprocessing and int8 encoding of
+``docs/pack-format.md`` §3 — which is authoritative and must stay identical to
+``scan/Embedder.kt`` + ``scan/Preprocess.kt`` on the device, otherwise pack vectors and on-device
+vectors stop being comparable. The model's sha256 is verified against ``tools/models.lock`` before
+the session is created, so a truncated or substituted asset fails the build loudly instead of
+producing silently wrong vectors.
+
+Unchanged cards are never re-embedded: :class:`~tcgscan_pipeline.embed_cache.EmbeddingCache` keys
+every vector by ``(card_id, lang, image_sha256, model_sha256)`` (FR-21).
+
+Cards without a visual in their own language yield no vector at all (``has_embed = 0``, FR-3),
+unless the optional EN fallback of D15/FR-4 is enabled — it is **off by default** and tags the
+rows it produces ``has_embed = 2`` so the app can refuse to pre-check them.
+
+Dry runs:
+
+    python -m tcgscan_pipeline.embed --image pipeline/.cache/images/fr/base1-1.webp
+    python -m tcgscan_pipeline.embed --lang fr --set base1 --max-cards 2
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import logging
+import math
+import stat
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from types import TracebackType
+from typing import Any
+from urllib.parse import quote
+
+import cv2
+import numpy as np
+import onnxruntime as ort
+
+from . import config
+from .catalog import CardRow, crawl_set
+from .embed_cache import EmbeddingCache
+from .images import ImageCache
+from .tcgdex import TcgdexClient, TcgdexError, TcgdexNotFound
+
+log = logging.getLogger(__name__)
+
+IMAGE_SIZE = 224
+"""Side of the square input tensor; the aspect ratio is squashed, no letterbox (§3.1)."""
+
+IMAGENET_MEAN = np.array((0.485, 0.456, 0.406), dtype=np.float32)
+IMAGENET_STD = np.array((0.229, 0.224, 0.225), dtype=np.float32)
+
+DEFAULT_INTRA_OP_THREADS = 2
+"""Threads per ONNX Runtime session; 2 is the configuration measured in docs/models.md §1."""
+
+EN_LANG = "en"
+"""Language the ``--en-image-fallback`` hook borrows a visual from (D15/FR-4)."""
+
+HAS_EMBED_NONE = 0
+HAS_EMBED_OWN_IMAGE = 1
+HAS_EMBED_EN_IMAGE = 2
+"""``cards.has_embed`` values of ``docs/pack-format.md`` §2.2."""
+
+_SHA_CHUNK_BYTES = 1 << 20
+
+
+class EmbedError(RuntimeError):
+    """A local embedding failure: missing or mismatched model, unreadable image, odd output."""
+
+
+# --- model identity ---------------------------------------------------------------------------
+
+
+def default_model_path() -> Path:
+    """Path of the model asset shared with the app."""
+    return config.MODELS_DIR / config.EMBED_MODEL_ASSET
+
+
+def file_sha256(path: Path) -> str:
+    """Hex sha256 of a file, read in chunks (the model is ~24 MB)."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        while chunk := handle.read(_SHA_CHUNK_BYTES):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def verify_model(path: Path | None = None, *, lock_path: Path | None = None) -> str:
+    """Check the model asset against ``tools/models.lock`` and return its sha256.
+
+    Raises:
+        EmbedError: the asset is missing, the lock file does not pin it, the lock disagrees with
+            ``config.EMBED_MODEL_SHA256``, or the bytes on disk do not match.
+    """
+    model = Path(path) if path is not None else default_model_path()
+    if not model.is_file():
+        raise EmbedError(f"{model} is missing; run `bash tools/fetch_models.sh` first")
+
+    expected_sha, expected_bytes = _lock_entry(model.name, lock_path)
+    if model.name == config.EMBED_MODEL_ASSET and expected_sha != config.EMBED_MODEL_SHA256:
+        raise EmbedError(
+            f"tools/models.lock pins {model.name} to {expected_sha} but "
+            f"config.EMBED_MODEL_SHA256 is {config.EMBED_MODEL_SHA256}; "
+            "docs/models.md, tools/models.lock and config.py must agree"
+        )
+
+    actual_bytes = model.stat().st_size
+    if actual_bytes != expected_bytes:
+        raise EmbedError(
+            f"{model} is {actual_bytes} B, tools/models.lock pins {expected_bytes} B; "
+            "re-run `bash tools/fetch_models.sh`"
+        )
+    actual_sha = file_sha256(model)
+    if actual_sha != expected_sha:
+        raise EmbedError(
+            f"{model} has sha256 {actual_sha}, tools/models.lock pins {expected_sha}; "
+            "re-run `bash tools/fetch_models.sh`"
+        )
+    return actual_sha
+
+
+def _lock_entry(asset: str, lock_path: Path | None) -> tuple[str, int]:
+    """Return ``(sha256, bytes)`` pinned for ``asset`` by the lock file."""
+    lock = Path(lock_path) if lock_path is not None else config.MODELS_LOCK
+    if not lock.is_file():
+        raise EmbedError(f"{lock} is missing; it pins every model asset and must be committed")
+
+    for number, raw in enumerate(lock.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        fields = line.split()
+        if len(fields) < 3:
+            raise EmbedError(f"{lock}:{number} is not `<asset> <sha256> <bytes> <url>`")
+        if fields[0] != asset:
+            continue
+        try:
+            return fields[1], int(fields[2])
+        except ValueError as exc:
+            raise EmbedError(f"{lock}:{number} has a non-numeric byte count") from exc
+
+    raise EmbedError(f"{lock} does not pin {asset}")
+
+
+# --- preprocessing (docs/pack-format.md §3.1) -------------------------------------------------
+
+
+def load_image(path: Path) -> np.ndarray:
+    """Read an image file as an RGB ``uint8`` array."""
+    image = cv2.imread(str(path), cv2.IMREAD_COLOR)
+    if image is None:
+        raise EmbedError(f"{path} is not a readable image")
+    return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+
+def preprocess(rgb: np.ndarray) -> np.ndarray:
+    """Turn an RGB image into the ``pixel_values`` tensor of shape ``(1, 3, 224, 224)``.
+
+    Verbatim §3.1: ``cv2.resize`` with ``INTER_LINEAR`` to 224×224 (aspect squashed, no letterbox,
+    no centre crop), ``float32`` divided by 255, ImageNet mean/std per RGB channel, then NCHW.
+    """
+    if rgb.ndim != 3 or rgb.shape[2] != 3:
+        raise ValueError(f"expected an RGB HxWx3 array, got shape {rgb.shape}")
+
+    resized = cv2.resize(rgb, (IMAGE_SIZE, IMAGE_SIZE), interpolation=cv2.INTER_LINEAR)
+    scaled = resized.astype(np.float32) / 255.0
+    normalised = (scaled - IMAGENET_MEAN) / IMAGENET_STD
+    return np.ascontiguousarray(normalised.transpose(2, 0, 1)[np.newaxis, ...], dtype=np.float32)
+
+
+# --- int8 encoding (docs/pack-format.md §3.3) -------------------------------------------------
+
+
+def quantize_int8(vec: np.ndarray) -> bytes:
+    """Encode a L2-normalised vector as ``config.EMBED_DIM`` signed bytes.
+
+    ``round(v_i * 127)`` clipped to ``[-127, 127]``, in component order — the exact content of
+    ``embeddings.vec``, so the app's integer dot product divided by ``127²`` is a cosine. Rounding
+    is numpy's round-half-to-even, as in Python's ``round()``.
+    """
+    flat = np.asarray(vec, dtype=np.float32).reshape(-1)
+    if flat.size != config.EMBED_DIM:
+        raise ValueError(f"vec must have {config.EMBED_DIM} components, got {flat.size}")
+    if not np.isfinite(flat).all():
+        raise ValueError("vec carries a non-finite component")
+
+    scale = config.EMBED_QUANT_SCALE
+    quantised = np.clip(np.rint(flat * scale), -scale, scale)
+    return quantised.astype(np.int8).tobytes()
+
+
+# --- embedder ---------------------------------------------------------------------------------
+
+
+class Embedder:
+    """The ONNX session of the shared model, plus the §3 pooling.
+
+    The session is created once and reused for every card: loading the 24 MB graph dominates the
+    cost of a single inference.
+    """
+
+    def __init__(
+        self,
+        model_path: Path | None = None,
+        *,
+        lock_path: Path | None = None,
+        threads: int = DEFAULT_INTRA_OP_THREADS,
+    ) -> None:
+        if threads < 1:
+            raise ValueError(f"threads must be >= 1, got {threads}")
+        self.model_path = Path(model_path) if model_path is not None else default_model_path()
+        self.model_sha256 = verify_model(self.model_path, lock_path=lock_path)
+
+        options = ort.SessionOptions()
+        options.intra_op_num_threads = threads
+        options.inter_op_num_threads = 1
+        self._session = ort.InferenceSession(
+            str(self.model_path), sess_options=options, providers=["CPUExecutionProvider"]
+        )
+
+        inputs = self._session.get_inputs()
+        if len(inputs) != 1:
+            raise EmbedError(
+                f"{self.model_path.name} takes {len(inputs)} inputs, expected only pixel_values"
+            )
+        self._input_name = inputs[0].name
+        self._output_name = self._session.get_outputs()[0].name
+        log.info(
+            "embedding model %s (%s) loaded: %s -> %s",
+            self.model_path.name,
+            self.model_sha256[:12],
+            self._input_name,
+            self._output_name,
+        )
+
+    @property
+    def model_id(self) -> str:
+        """Value of ``pack_meta.embed_model``: asset name and sha256 (§2.1)."""
+        return f"{self.model_path.name}@{self.model_sha256}"
+
+    def embed_image(self, path: Path) -> np.ndarray:
+        """Return the L2-normalised CLS embedding of one image file.
+
+        Raises:
+            EmbedError: the file is unreadable, or the model returned an unexpected shape or a
+                degenerate (zero / non-finite) vector.
+        """
+        tensor = preprocess(load_image(path))
+        outputs = self._session.run([self._output_name], {self._input_name: tensor})
+        hidden = np.asarray(outputs[0])
+        if hidden.ndim != 3 or hidden.shape[0] != 1 or hidden.shape[2] != config.EMBED_DIM:
+            raise EmbedError(
+                f"{self._output_name} has shape {hidden.shape}, "
+                f"expected (1, tokens, {config.EMBED_DIM})"
+            )
+
+        cls_token = hidden[0, 0, :].astype(np.float32)
+        norm = float(np.linalg.norm(cls_token))
+        if not math.isfinite(norm) or norm <= 0.0:
+            raise EmbedError(f"the model returned a degenerate vector for {path} (L2 norm {norm})")
+        return cls_token / norm
+
+    def embed_int8(self, path: Path) -> bytes:
+        """Embed one image file straight into its ``embeddings.vec`` blob."""
+        return quantize_int8(self.embed_image(path))
+
+
+# --- per-card stage ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class EmbedResult:
+    """The embedding of one card, ready for the ``embeddings`` table."""
+
+    card_id: str
+    vec: bytes
+    has_embed: int
+    image_path: Path
+    reused: bool
+    """True when the vector came from the cross-run cache instead of an ONNX run (FR-21)."""
+
+
+class EnImageResolver:
+    """Image stem of the EN print of a card id — the ``--en-image-fallback`` hook (D15/FR-4).
+
+    This is the only per-card request of the pipeline (``docs/pack-format.md`` §4.4 forbids them on
+    the normal path): it is made solely for cards that have no visual in their own language, and
+    only when the operator opted in. Answers are memoised, so a card is looked up once per run.
+    """
+
+    def __init__(self, *, client: TcgdexClient | None = None) -> None:
+        self._owns_client = client is None
+        self._client = client or TcgdexClient()
+        self._stems: dict[str, str | None] = {}
+
+    def close(self) -> None:
+        """Close the underlying client when this resolver created it."""
+        if self._owns_client:
+            self._client.close()
+
+    def __enter__(self) -> "EnImageResolver":
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self.close()
+
+    def stem(self, card_id: str) -> str | None:
+        """Return the EN image stem of ``card_id``, or ``None`` when there is none.
+
+        Raises:
+            TcgdexUnavailable: every attempt failed; the release gate turns that into « publish
+                nothing » (FR-22).
+        """
+        if card_id in self._stems:
+            return self._stems[card_id]
+
+        try:
+            # The id comes from the API and is pasted into the request path: every reserved
+            # character, ``/`` included, is escaped so it stays one segment (like tcgdex.py does).
+            payload: Any = self._client.get_json(f"{EN_LANG}/cards/{quote(card_id, safe='')}")
+        except TcgdexNotFound:
+            log.info("%s has no EN print; no fallback visual", card_id)
+            payload = None
+        stem = None
+        if isinstance(payload, dict):
+            stem = str(payload.get("image") or "").strip() or None
+        self._stems[card_id] = stem
+        return stem
+
+
+def _is_cached_visual(path: Path) -> bool:
+    """True when ``path`` already holds a usable visual, by ``ImageCache``'s own rule.
+
+    Mirrors ``images._is_cached``, symlink rejection included: the cache tree comes back from
+    ``actions/cache``, so a symlink there counts as absent instead of being embedded through to
+    wherever it points.
+    """
+    try:
+        info = path.lstat()
+    except OSError:
+        return False
+    return stat.S_ISREG(info.st_mode) and info.st_size > 0
+
+
+def embed_card(
+    card: CardRow,
+    lang: str,
+    *,
+    embedder: Embedder,
+    images: ImageCache,
+    cache: EmbeddingCache | None = None,
+    en_resolver: EnImageResolver | None = None,
+) -> EmbedResult | None:
+    """Embed one crawled card, reusing the caches, or return ``None`` when it has no visual.
+
+    Args:
+        card: the row produced by :mod:`tcgscan_pipeline.catalog`.
+        lang: language of the pack being built; part of the cache key.
+        embedder: the loaded model.
+        images: visual cache; the image is downloaded only if it is not on disk yet.
+        cache: cross-run embedding cache (FR-21); ``None`` disables reuse.
+        en_resolver: EN fallback (D15/FR-4). ``None`` — the default — means the fallback is off,
+            so a card without its own visual simply gets no vector (``has_embed = 0``, FR-3).
+
+    Returns:
+        The ``EmbedResult`` with ``has_embed = 1`` for the card's own visual and ``2`` for an EN
+        fallback one, or ``None`` when no visual could be obtained.
+
+    Raises:
+        TcgdexUnavailable: a download or an EN lookup failed every attempt.
+        EmbedError: the cached file is not a readable image, or the model misbehaved.
+    """
+    if not lang:
+        raise ValueError("lang must not be empty")
+
+    path = images.fetch(lang, card.card_id, card.image_url)
+    has_embed = HAS_EMBED_OWN_IMAGE
+    if path is None and en_resolver is not None and lang != EN_LANG:
+        # The stem lookup is the only per-card request of the pipeline: FR-21 wants it skipped
+        # whenever the EN visual of an earlier run is still cached, so the cache is read first.
+        cached_en = images.path_for(EN_LANG, card.card_id)
+        if _is_cached_visual(cached_en):
+            path = cached_en
+        else:
+            path = images.fetch(EN_LANG, card.card_id, en_resolver.stem(card.card_id))
+        has_embed = HAS_EMBED_EN_IMAGE
+    if path is None:
+        return None
+
+    image_sha256 = file_sha256(path)
+    if cache is not None:
+        cached = cache.get(card.card_id, lang, image_sha256)
+        if cached is not None:
+            return EmbedResult(
+                card_id=card.card_id,
+                vec=cached,
+                has_embed=has_embed,
+                image_path=path,
+                reused=True,
+            )
+
+    vec = embedder.embed_int8(path)
+    if cache is not None:
+        cache.put(card.card_id, lang, image_sha256, vec)
+    return EmbedResult(
+        card_id=card.card_id, vec=vec, has_embed=has_embed, image_path=path, reused=False
+    )
+
+
+# --- dry runs ---------------------------------------------------------------------------------
+
+
+def _main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="python -m tcgscan_pipeline.embed",
+        description="Embed one image file, or the cached visuals of one set, with the app's model.",
+    )
+    parser.add_argument(
+        "--image",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="embed this single file and print its 384 components and their L2 norm",
+    )
+    parser.add_argument("--lang", default=None, help="language code of the set mode, e.g. fr or ja")
+    parser.add_argument("--set", default=None, metavar="SET_ID", help="set id, e.g. base1")
+    parser.add_argument(
+        "--max-cards",
+        type=int,
+        default=None,
+        metavar="N",
+        help="stop after N cards of the set; the whole set is embedded when omitted",
+    )
+    parser.add_argument(
+        "--en-image-fallback",
+        action="store_true",
+        help="borrow the EN visual of a card that has none in its language (D15/FR-4, off by "
+        "default); the rows it produces are tagged has_embed=2",
+    )
+    args = parser.parse_args(argv)
+
+    if (args.image is None) == (args.lang is None and args.set is None):
+        parser.error("pass either --image PATH or both --lang and --set")
+    if args.image is None and (not args.lang or not args.set):
+        parser.error("the set mode needs both --lang and --set")
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+
+    try:
+        embedder = Embedder()
+        if args.image is not None:
+            return _embed_one(embedder, args.image)
+        return _embed_set(embedder, args.lang, args.set, args.max_cards, args.en_image_fallback)
+    except (EmbedError, TcgdexError) as exc:
+        log.error("%s", exc)
+        return 1
+
+
+def _embed_one(embedder: Embedder, image: Path) -> int:
+    """Print the vector of a single file — the cheap end-to-end check of the §3 contract."""
+    vec = embedder.embed_image(image)
+    print(" ".join(f"{value:.6f}" for value in vec))
+    print(
+        f"dim={vec.size} l2={float(np.linalg.norm(vec)):.6f} "
+        f"int8_bytes={len(quantize_int8(vec))} model={embedder.model_id}"
+    )
+    return 0
+
+
+def _embed_set(
+    embedder: Embedder, lang: str, set_id: str, max_cards: int | None, en_fallback: bool
+) -> int:
+    """Embed one crawled set through both caches and print one line per card."""
+    crawled = crawl_set(lang, set_id)
+    cards = crawled.cards if max_cards is None else crawled.cards[:max_cards]
+    resolver = EnImageResolver() if en_fallback else None
+    embedded = 0
+    try:
+        with EmbeddingCache(model_sha256=embedder.model_sha256) as cache, ImageCache() as images:
+            for card in cards:
+                result = embed_card(
+                    card,
+                    lang,
+                    embedder=embedder,
+                    images=images,
+                    cache=cache,
+                    en_resolver=resolver,
+                )
+                if result is None:
+                    print(f"{card.card_id}\thas_embed={HAS_EMBED_NONE}\tno-image")
+                    continue
+                embedded += 1
+                print(
+                    f"{result.card_id}\thas_embed={result.has_embed}\t"
+                    f"{'reused' if result.reused else 'computed'}\t{len(result.vec)} B"
+                )
+            print(f"{lang}/{set_id}: {embedded}/{len(cards)} cards embedded; {cache.summary()}")
+    finally:
+        if resolver is not None:
+            resolver.close()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(_main())
