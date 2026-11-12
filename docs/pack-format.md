@@ -180,6 +180,12 @@ Base URL `https://api.tcgdex.net/v2`, one language at a time (`fr`, `ja`).
 5. `cards.image_url` stores the TCGdex image *stem* as returned by the API; the concrete asset is
    `{image}/low.webp` (`high.webp` and `low.png` also exist). A card whose `image` field is absent
    gets `image_url = NULL` and `has_embed = 0`.
+   A stored stem **must start with the literal prefix `https://assets.tcgdex.net/`**, compared byte
+   for byte, with **no case folding** — `app/src/main/java/org/tcgscan/app/ui/image/CardImage.kt`
+   requests a visual only for such a stem, because `image_url` is pack data that Coil would
+   otherwise resolve as a `file://` or `content://` URI. A stem the app refuses is of no use, so
+   the crawl stores it as `image_url = NULL` with `has_embed = 0` and logs a warning, and the pack
+   builder **refuses** a database in which any row has a non-`NULL` `image_url` outside the prefix.
 6. Rate limiting (FR-21): minimum 150 ms between two requests, 5 attempts with exponential backoff
    (the first try plus 4 retries, 1/2/4/8 s capped at 30 s).
 7. A body that fails `json.loads` — the measured intermittent `no available server` plain-text

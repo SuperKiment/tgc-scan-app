@@ -28,6 +28,15 @@ from .tcgdex import TcgdexClient, TcgdexError, TcgdexNotFound
 
 log = logging.getLogger(__name__)
 
+TCGDEX_ASSET_PREFIX = "https://assets.tcgdex.net/"
+"""The only prefix a stored ``cards.image_url`` may have (``docs/pack-format.md`` §4.5).
+
+``app/src/main/java/org/tcgscan/app/ui/image/CardImage.kt`` requests a visual only for a stem
+starting with this very string, compared literally and without case folding, because ``image_url``
+is pack data that Coil would otherwise resolve as a ``file://`` or ``content://`` URI. A stem the
+app would refuse is of no use in a pack, so the crawl stores it as « no visual ».
+"""
+
 # --- canonical normalisation (docs/pack-format.md §5.1) ---------------------------------------
 
 _KANA_CJK_RANGES: tuple[tuple[int, int], ...] = (
@@ -91,8 +100,10 @@ class CardRow:
     """One row of the pack's ``cards`` table.
 
     ``image_url`` is the TCGdex image *stem* as returned by the API: the concrete asset is
-    ``image_url + config.IMAGE_SUFFIX``. ``has_image`` is false when the card has no visual at
-    all, which the pack builder turns into ``has_embed = 0`` (FR-3).
+    ``image_url + config.IMAGE_SUFFIX``. It is either ``None`` or a stem under
+    :data:`TCGDEX_ASSET_PREFIX`; anything else the API may answer never reaches this row.
+    ``has_image`` is false when the card has no usable visual at all, which the pack builder turns
+    into ``has_embed = 0`` (FR-3).
     """
 
     card_id: str
@@ -286,6 +297,17 @@ def _build_set(payload: dict[str, Any], *, fallback_series_id: str | None = None
         seen_cards.add(card_id)
         name = _text(entry.get("name"))
         image_url = _text(entry.get("image")) or None
+        if image_url is not None and not image_url.startswith(TCGDEX_ASSET_PREFIX):
+            # The stem is API data and the app only ever requests a TCGDEX_ASSET_PREFIX one
+            # (§4.5): storing anything else would ship a URL no reader may follow.
+            log.warning(
+                "set %s: card %s has image %r outside %s; stored as a card without a visual",
+                set_id,
+                card_id,
+                image_url,
+                TCGDEX_ASSET_PREFIX,
+            )
+            image_url = None
         cards.append(
             CardRow(
                 card_id=card_id,
