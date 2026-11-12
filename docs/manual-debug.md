@@ -42,11 +42,22 @@ adb shell pm clear org.tcgscan.app           # wipes database, preferences, pack
 
 ## 2. Build a pack locally and push it to the device
 
+The pipeline runs from `pipeline/`, inside a Python 3.12 virtual environment. A system Python without
+the dependencies fails with `ModuleNotFoundError: No module named 'cv2'`. On Python 3.14, pip builds
+numpy 2.2.6 from source, so use 3.12: `uv` downloads it on its own (`.venv/` is gitignored).
+
 ```bash
-python3 -m pip install -r pipeline/requirements.txt       # Python 3.12+
-bash tools/fetch_models.sh                                # the embedding model must be present (see docs/models.md)
-python3 -m tcgscan_pipeline build --langs fr --out dist   # add --max-sets 3 for a quick, small pack
+bash tools/fetch_models.sh                     # from the repo root: the embedding model must be present (see docs/models.md)
+cd pipeline
+uv venv -p 3.12 .venv                          # once
+uv pip install -p .venv -r requirements.txt    # once (numpy 2.2.6, opencv-python-headless 4.12, onnxruntime 1.31.1, …)
+.venv/bin/python -m tcgscan_pipeline build --langs fr --max-sets 3 --out ../dist   # drop --max-sets for the full catalogue
+cd ..
 ```
+
+Expected log: `TCGSCAN_REPO is not set: … the 2 % guard is not applied` (normal locally). With
+`--max-sets 3` you get `fr: 3 sets, 192 cards, 166 vectors …` (26 cards of `basep` have no visual, so
+they are OCR-only), `release gate open` and `emitted into …/dist: manifest.json, pack-fr.db.gz` (~76 KB).
 
 The result is `dist/pack-fr.db.gz` and `dist/manifest.json`. The app reads the decompressed SQLite file
 at `/data/data/org.tcgscan.app/files/packs/fr/pack.db`. `adb push` cannot write there directly: stage the
