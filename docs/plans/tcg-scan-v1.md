@@ -203,7 +203,7 @@ do: Entities: `OwnedCard(lang, cardId, physicalLang, addedAt)` PK(lang,cardId);
   membership, add/remove, session + detection CRUD, unfinished-session lookup (EC-13/EC-14).
 exit: `./gradlew assembleDebug` succeeds (KSP generates `AppDatabase_Impl`) and `app/schemas/org.tcgscan.app.data.db.AppDatabase/1.json` exists.
 
-### T5: HTTP layer and manifest service  [doing]  (lite: no)
+### T5: HTTP layer and manifest service  [done]  (lite: no)
 deps: T2
 files: app/src/main/java/org/tcgscan/app/data/net/Http.kt, app/src/main/java/org/tcgscan/app/data/net/ManifestService.kt, app/src/main/java/org/tcgscan/app/data/net/PackManifest.kt, app/src/main/java/org/tcgscan/app/data/net/RangeDownloader.kt
 do: `Http` builds one shared OkHttpClient (no cookie jar, 15 s timeouts, follow redirects, a
@@ -245,7 +245,7 @@ do: `PackPaths` resolves `<filesDir>/packs/<lang>/pack.db` and the staging dir.
 exit: `./gradlew assembleDebug` succeeds; `EmbeddingIndex.topK` is the only similarity entry point and
   allocates no per-call arrays beyond the result list.
 
-### T8: Pack install, update and removal  [todo]  (lite: no)
+### T8: Pack install, update and removal  [done]  (lite: no)
 deps: T5, T7
 files: app/src/main/java/org/tcgscan/app/data/pack/PackInstaller.kt, app/src/main/java/org/tcgscan/app/data/pack/PackRepository.kt, app/src/main/java/org/tcgscan/app/data/pack/PackInstallState.kt
 do: `PackInstaller.install(lang, entry, onProgress)`: free-space check for `bytes + installedBytes`
@@ -260,7 +260,7 @@ do: `PackInstaller.install(lang, entry, onProgress)`: free-space check for `byte
 exit: `./gradlew assembleDebug` succeeds; no code path writes `packs/<lang>/pack.db` other than the
   `renameTo` in `PackInstaller`.
 
-### T9: ONNX runtime wiring and the image embedder  [todo]  (lite: no)
+### T9: ONNX runtime wiring and the image embedder  [done]  (lite: no)
 deps: T3, T6
 files: app/src/main/java/org/tcgscan/app/scan/OnnxEnv.kt, app/src/main/java/org/tcgscan/app/scan/ModelAssets.kt, app/src/main/java/org/tcgscan/app/scan/Embedder.kt, app/src/main/java/org/tcgscan/app/scan/Preprocess.kt
 do: `ModelAssets` copies the 5 assets to `<filesDir>/models/` once (sha-less, size+name guard) because
@@ -274,7 +274,7 @@ do: `ModelAssets` copies the 5 assets to `<filesDir>/models/` once (sha-less, si
 exit: `./gradlew assembleDebug` succeeds; `Embedder` reads only `embed_dinov2s_int8.onnx` and returns a
   384-length array, and `Preprocess` contains the constants 0.485/0.456/0.406 and 0.229/0.224/0.225.
 
-### T10: On-device OCR (PP-OCR detection + recognition)  [todo]  (lite: no)
+### T10: On-device OCR (PP-OCR detection + recognition)  [done]  (lite: no)
 deps: T9
 files: app/src/main/java/org/tcgscan/app/scan/ocr/TextDetector.kt, app/src/main/java/org/tcgscan/app/scan/ocr/TextRecognizer.kt, app/src/main/java/org/tcgscan/app/scan/ocr/CtcDecoder.kt, app/src/main/java/org/tcgscan/app/scan/ocr/OcrEngine.kt, app/src/main/java/org/tcgscan/app/scan/ocr/OcrModels.kt
 do: `TextDetector`: resize the warped card so both sides are multiples of 32 (max side 640), normalise
@@ -291,7 +291,7 @@ do: `TextDetector`: resize the warped card so both sides are multiples of 32 (ma
 exit: `./gradlew assembleDebug` succeeds; the decoder's dictionary load asserts
   `dict.size + 2 == outputClasses` for both models.
 
-### T11: Card detection, stabilisation and perspective correction  [todo]  (lite: no)
+### T11: Card detection, stabilisation and perspective correction  [done]  (lite: no)
 deps: T2
 files: app/src/main/java/org/tcgscan/app/scan/detect/CardQuadDetector.kt, app/src/main/java/org/tcgscan/app/scan/detect/Stabilizer.kt, app/src/main/java/org/tcgscan/app/scan/detect/Warper.kt, app/src/main/java/org/tcgscan/app/scan/detect/FrameConverter.kt
 do: `FrameConverter` turns a CameraX `ImageProxy` (YUV_420_888) into an OpenCV `Mat` (grey for
@@ -308,7 +308,7 @@ do: `FrameConverter` turns a CameraX `ImageProxy` (YUV_420_888) into an OpenCV `
 exit: `./gradlew assembleDebug` succeeds; `CardQuadDetector` returns the `Multiple` case and exposes
   blur/luma, and `Stabilizer` has the cooldown that blocks a second capture of an unmoved card.
 
-### T12: OCR text interpretation (name, number, set code, language)  [todo]  (lite: no)
+### T12: OCR text interpretation (name, number, set code, language)  [done]  (lite: no)
 deps: T2, T3
 files: app/src/main/java/org/tcgscan/app/scan/text/TextNormalizer.kt, app/src/main/java/org/tcgscan/app/scan/text/CardTextParser.kt, app/src/main/java/org/tcgscan/app/scan/text/ScriptDetector.kt
 do: `TextNormalizer.normalize(s)` = NFD, strip combining marks, lowercase, collapse non-alphanumerics —
@@ -323,7 +323,7 @@ do: `TextNormalizer.normalize(s)` = NFD, strip combining marks, lowercase, colla
 exit: `./gradlew assembleDebug` succeeds; `TextNormalizer` is referenced by the matcher and documented
   in docs/pack-format.md as the canonical normalisation.
 
-### T13: Candidate matcher and confidence policy  [todo]  (lite: no)
+### T13: Candidate matcher and confidence policy  [done]  (lite: no)
 deps: T7, T12
 files: app/src/main/java/org/tcgscan/app/scan/match/Matcher.kt, app/src/main/java/org/tcgscan/app/scan/match/Candidate.kt, app/src/main/java/org/tcgscan/app/scan/ScanTuning.kt
 do: `ScanTuning` holds every threshold of D16 as named constants (visual accept, margin, OCR agreement
@@ -342,7 +342,7 @@ do: `ScanTuning` holds every threshold of D16 as named constants (visual accept,
 exit: `./gradlew assembleDebug` succeeds; `Matcher` never returns `Confident` when `hasEmbed != 1` or when
   the runner-up margin is below `ScanTuning.MIN_MARGIN`.
 
-### T14: Scan pipeline, session persistence and photo store  [todo]  (lite: no)
+### T14: Scan pipeline, session persistence and photo store  [done]  (lite: no)
 deps: T4, T9, T10, T11, T13
 files: app/src/main/java/org/tcgscan/app/scan/ScanPipeline.kt, app/src/main/java/org/tcgscan/app/scan/DedupTracker.kt, app/src/main/java/org/tcgscan/app/scan/ScanPhotoStore.kt, app/src/main/java/org/tcgscan/app/scan/ScanSessionRepository.kt
 do: `ScanPipeline.onFrame(imageProxy, sessionLang)` = convert → detect → stabilise → warp → embed →
@@ -359,7 +359,7 @@ do: `ScanPipeline.onFrame(imageProxy, sessionLang)` = convert → detect → sta
 exit: `./gradlew assembleDebug` succeeds; every detection is written to Room before `ScanEvent.Detected`
   is emitted, and no collection write happens anywhere in this task's files (FR-9).
 
-### T15: Scan screen (CameraX, counter, torch, permission)  [todo]  (lite: no)
+### T15: Scan screen (CameraX, counter, torch, permission)  [done]  (lite: no)
 deps: T14
 files: app/src/main/java/org/tcgscan/app/ui/scan/ScanRoute.kt, app/src/main/java/org/tcgscan/app/ui/scan/ScanViewModel.kt, app/src/main/java/org/tcgscan/app/ui/scan/CameraPreview.kt, app/src/main/res/values/strings.xml
 do: `CameraPreview` binds a CameraX `Preview` + `ImageAnalysis` (`STRATEGY_KEEP_ONLY_LATEST`,
@@ -372,7 +372,7 @@ do: `CameraPreview` binds a CameraX `Preview` + `ImageAnalysis` (`STRATEGY_KEEP_
 exit: `./gradlew assembleDebug` succeeds; ScanRoute resolves `ReviewRoute` through the NavHost routes
   created in T2 without editing `TcgScanNavHost.kt`.
 
-### T16: Review screen and collection commit  [todo]  (lite: no)
+### T16: Review screen and collection commit  [done]  (lite: no)
 deps: T4, T14
 files: app/src/main/java/org/tcgscan/app/ui/review/ReviewRoute.kt, app/src/main/java/org/tcgscan/app/ui/review/ReviewViewModel.kt, app/src/main/java/org/tcgscan/app/ui/review/ReviewRows.kt, app/src/main/java/org/tcgscan/app/data/CollectionRepository.kt
 do: Three sections: « Reconnues » (pre-checked), « À vérifier » (unchecked, each row showing the scan
@@ -386,7 +386,7 @@ do: Three sections: « Reconnues » (pre-checked), « À vérifier » (unchecked
 exit: `./gradlew assembleDebug` succeeds; `CollectionRepository.commit` is the only writer of `OwnedCard`
   from the scan flow and runs inside a single `withTransaction`.
 
-### T17: Catalogue — search, set browsing, card detail  [todo]  (lite: no)
+### T17: Catalogue — search, set browsing, card detail  [done]  (lite: no)
 deps: T4, T7, T23
 files: app/src/main/java/org/tcgscan/app/ui/catalog/CatalogRoute.kt, app/src/main/java/org/tcgscan/app/ui/catalog/CatalogViewModel.kt, app/src/main/java/org/tcgscan/app/ui/catalog/SetBrowseRoute.kt, app/src/main/java/org/tcgscan/app/ui/catalog/CardDetailRoute.kt, app/src/main/java/org/tcgscan/app/ui/catalog/CardDetailViewModel.kt
 do: Catalogue root: language tabs over the installed packs, a search field querying `name_norm` LIKE and
@@ -398,7 +398,7 @@ do: Catalogue root: language tabs over the installed packs, a search field query
 exit: `./gradlew assembleDebug` succeeds; ownership badges come from a Room Flow and card data from
   `PackCatalog` (no duplication of card metadata in Room).
 
-### T18: Collection screen  [todo]  (lite: no)
+### T18: Collection screen  [done]  (lite: no)
 deps: T4, T7, T23
 files: app/src/main/java/org/tcgscan/app/ui/collection/CollectionRoute.kt, app/src/main/java/org/tcgscan/app/ui/collection/CollectionViewModel.kt
 do: Lists owned cards joined against `PackCatalog`, filterable by language and by set, searchable by
@@ -408,7 +408,7 @@ do: Lists owned cards joined against `PackCatalog`, filterable by language and b
 exit: `./gradlew assembleDebug` succeeds; removing an ownership updates the list without a manual refresh
   (Flow-driven) and unknown ids are rendered rather than dropped.
 
-### T19: Wishlist and custom lists  [todo]  (lite: no)
+### T19: Wishlist and custom lists  [done]  (lite: no)
 deps: T4, T7, T23
 files: app/src/main/java/org/tcgscan/app/ui/lists/ListsRoute.kt, app/src/main/java/org/tcgscan/app/ui/lists/ListsViewModel.kt, app/src/main/java/org/tcgscan/app/ui/lists/ListDetailRoute.kt, app/src/main/java/org/tcgscan/app/data/CardListRepository.kt
 do: `ListsRoute` shows the wishlist first (system, no delete, no rename) then user lists with create /
@@ -419,7 +419,7 @@ do: `ListsRoute` shows the wishlist first (system, no delete, no rename) then us
 exit: `./gradlew assembleDebug` succeeds; `CardListRepository.delete` throws/returns an error for the
   system list and never deletes `OwnedCard` rows.
 
-### T20: Settings, pack management, About  [todo]  (lite: no)
+### T20: Settings, pack management, About  [done]  (lite: no)
 deps: T3, T8
 files: app/src/main/java/org/tcgscan/app/ui/settings/SettingsRoute.kt, app/src/main/java/org/tcgscan/app/ui/settings/SettingsViewModel.kt, app/src/main/java/org/tcgscan/app/ui/settings/PackRow.kt, app/src/main/java/org/tcgscan/app/ui/about/AboutRoute.kt
 do: Settings: default scan language, installed packs with version/card count/size, « mettre à jour »
@@ -443,7 +443,7 @@ do: Three steps: the « projet de fan non affilié » notice, the pack choice (F
 exit: `./gradlew assembleDebug` succeeds; the onboarding start destination is decided from `AppPrefs` and
   the fan-project notice string is shown before the pack choice.
 
-### T22: Backup — JSON/CSV export and JSON import  [todo]  (lite: no)
+### T22: Backup — JSON/CSV export and JSON import  [done]  (lite: no)
 deps: T4
 files: app/src/main/java/org/tcgscan/app/data/backup/BackupModels.kt, app/src/main/java/org/tcgscan/app/data/backup/BackupExporter.kt, app/src/main/java/org/tcgscan/app/data/backup/BackupImporter.kt, app/src/main/java/org/tcgscan/app/ui/backup/BackupRoute.kt, app/src/main/java/org/tcgscan/app/ui/backup/BackupViewModel.kt
 do: `BackupModels` = `@Serializable` envelope `{schemaVersion, exportedAt, ownerships:[{lang,cardId,
@@ -496,7 +496,7 @@ do: `catalog.py`: `crawl(lang)` → `series()` → skip ids in `EXCLUDED_SERIES`
 exit: `python3 -m py_compile` passes and `python3 -m tcgscan_pipeline.catalog --lang fr --max-sets 2`
   prints card rows with no `tcgp` set among them.
 
-### T26: Embedding stage with cross-run cache  [todo]  (lite: no)
+### T26: Embedding stage with cross-run cache  [done]  (lite: no)
 deps: T24, T6
 files: pipeline/tcgscan_pipeline/embed.py, pipeline/tcgscan_pipeline/embed_cache.py
 do: `embed.py` loads `app/src/main/assets/models/embed_dinov2s_int8.onnx` (same file as the app, D6),
@@ -511,7 +511,7 @@ do: `embed.py` loads `app/src/main/assets/models/embed_dinov2s_int8.onnx` (same 
 exit: `python3 -m py_compile` passes and `python3 -m tcgscan_pipeline.embed --image <any webp from the
   cache>` prints a 384-length vector whose L2 norm is 1.0 ± 1e-3.
 
-### T27: Pack builder  [todo]  (lite: no)
+### T27: Pack builder  [done]  (lite: no)
 deps: T25, T26
 files: pipeline/tcgscan_pipeline/packbuild.py
 do: `build_pack(lang, out_dir)` creates `pack.db` with the exact DDL of docs/pack-format.md (D9), fills
@@ -523,7 +523,7 @@ exit: `python3 -m py_compile` passes and `python3 -m tcgscan_pipeline.packbuild 
   --out /tmp/packtest` produces a `pack-fr.db.gz` whose contained db has non-empty `cards`,
   `embeddings` and `ocr_tokens` tables and `pack_meta.pack_schema = 1`.
 
-### T28: Manifest, 2 % guard, release gate and CLI  [todo]  (lite: no)
+### T28: Manifest, 2 % guard, release gate and CLI  [done]  (lite: no)
 deps: T27
 files: pipeline/tcgscan_pipeline/manifest.py, pipeline/tcgscan_pipeline/guard.py, pipeline/tcgscan_pipeline/cli.py
 do: `manifest.py` writes `manifest.json` per docs/pack-format.md (schema 1, version = build date,
@@ -539,7 +539,7 @@ do: `manifest.py` writes `manifest.json` per docs/pack-format.md (schema 1, vers
   logging and a non-zero exit on any failure.
 exit: `python3 -m py_compile` passes and `python3 -m tcgscan_pipeline build --langs fr --max-sets 1
   --out /tmp/packdry` exits 0 with `manifest.json` + `pack-fr.db.gz` in `/tmp/packdry` whose sha256
-  matches the manifest entry; running the same command with a forced 1-card previous manifest exits
+  matches the manifest entry; running the same command with a previous manifest far larger than the new build (e.g. 20000 fr cards) exits
   non-zero and leaves `/tmp/packdry2` empty.
 
 ### T29: GitHub Actions workflows  [todo]  (lite: no)
