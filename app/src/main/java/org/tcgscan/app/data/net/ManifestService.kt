@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import org.tcgscan.app.AppConfig
 
 /**
@@ -41,7 +42,10 @@ class ManifestService(
             .build()
         return try {
             client.newCall(request).execute().use { response ->
-                val body = response.body?.string().orEmpty()
+                val body = readCapped(response)
+                    ?: return@use Attempt.Terminal(
+                        ManifestResult.Malformed("manifest larger than $MAX_MANIFEST_BYTES bytes"),
+                    )
                 when {
                     response.code >= HTTP_SERVER_ERROR ->
                         Attempt.Transient(ManifestResult.Unavailable("HTTP ${response.code}"))
@@ -56,6 +60,17 @@ class ManifestService(
             // No usable connection: retrying here would only delay the « réessayer » screen (EC-1).
             Attempt.Terminal(ManifestResult.Offline(e.describe()))
         }
+    }
+
+    /** Body text, or null when it exceeds [MAX_MANIFEST_BYTES] (declared length or actual bytes). */
+    private fun readCapped(response: Response): String? {
+        val body = response.body ?: return ""
+        if (body.contentLength() > MAX_MANIFEST_BYTES) return null
+        val source = body.source()
+        // request() buffers up to the limit and returns false on early EOF instead of throwing.
+        source.request(MAX_MANIFEST_BYTES + 1)
+        if (source.buffer.size > MAX_MANIFEST_BYTES) return null
+        return source.buffer.readString(Charsets.UTF_8)
     }
 
     private fun parsed(body: String): Attempt<PackManifest, ManifestResult.Failure> {
@@ -76,6 +91,7 @@ class ManifestService(
     companion object {
 
         private const val HTTP_SERVER_ERROR = 500
+        private const val MAX_MANIFEST_BYTES = 1L * 1024 * 1024
 
         /**
          * Absolute URL of a pack asset, resolved against the very same

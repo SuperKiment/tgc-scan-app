@@ -189,4 +189,4 @@ private const val MAX_LIST_NAME_LENGTH = 200
 private const val MAX_TIMESTAMP_LENGTH = 64
 
 /** Untrusted text made safe for a failure message: truncated, control characters (newlines) dropped. */
-private fun String.safe(): String = take(40).filterNot { it.isISOControl() }
+internal fun String.safe(max: Int = 40): String = take(max).filterNot { it.isISOControl() }

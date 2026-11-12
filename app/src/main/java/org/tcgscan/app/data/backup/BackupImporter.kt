@@ -54,10 +54,10 @@ class BackupImporter(
         val envelope = try {
             BackupEnvelope.parse(body)
         } catch (e: SerializationException) {
-            return@withContext ImportPreviewResult.Corrupt(e.describe())
+            return@withContext ImportPreviewResult.Corrupt(e.describe().safe(MAX_ERROR_CHARS))
         } catch (e: IllegalArgumentException) {
             // Thrown by the JSON reader on a structurally impossible document.
-            return@withContext ImportPreviewResult.Corrupt(e.describe())
+            return@withContext ImportPreviewResult.Corrupt(e.describe().safe(MAX_ERROR_CHARS))
         }
         if (envelope.schemaVersion > AppConfig.DB_SCHEMA) {
             return@withContext ImportPreviewResult.UnsupportedSchema(envelope.schemaVersion)
@@ -220,6 +220,9 @@ class BackupImporter(
     private companion object {
 
         const val COPY_BUFFER_BYTES = 8 * 1024
+
+        /** Parser messages can echo the file content: clamp them before they reach the UI. */
+        const val MAX_ERROR_CHARS = 200
 
         /**
          * Key the wishlist is diffed under. Lists are matched by name, case-insensitively, but the
