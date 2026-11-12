@@ -432,7 +432,7 @@ do: Settings: default scan language, installed packs with version/card count/siz
 exit: `./gradlew assembleDebug` succeeds; the About screen text contains « non affilié », « TCGdex » and
   « GPL-3.0 », and pack size is displayed before any download starts.
 
-### T21: First-run onboarding  [todo]  (lite: no)
+### T21: First-run onboarding  [done]  (lite: no)
 deps: T8, T20
 files: app/src/main/java/org/tcgscan/app/ui/onboarding/OnboardingRoute.kt, app/src/main/java/org/tcgscan/app/ui/onboarding/OnboardingViewModel.kt, app/src/main/java/org/tcgscan/app/data/AppPrefs.kt
 do: Three steps: the « projet de fan non affilié » notice, the pack choice (FR / JP with sizes from the
@@ -542,7 +542,7 @@ exit: `python3 -m py_compile` passes and `python3 -m tcgscan_pipeline build --la
   matches the manifest entry; running the same command with a previous manifest far larger than the new build (e.g. 20000 fr cards) exits
   non-zero and leaves `/tmp/packdry2` empty.
 
-### T29: GitHub Actions workflows  [todo]  (lite: no)
+### T29: GitHub Actions workflows  [done]  (lite: no)
 deps: T28, T2
 files: .github/workflows/packs.yml, .github/workflows/release-apk.yml
 do: `packs.yml`: `schedule: cron "0 4 * * 1"` + `workflow_dispatch`; ubuntu-latest,
