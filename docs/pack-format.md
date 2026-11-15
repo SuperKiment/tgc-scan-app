@@ -106,7 +106,7 @@ one bundled in its assets; such a pack must not be used for visual matching.
 |---|---|---|
 | `0` | no visual reference (no TCGdex image) — OCR-only card (FR-3) | **never** |
 | `1` | embedding computed from the image of this very card, in this language: the TCGdex image or, for a `ja` card TCGdex has none for, the Limitless TCG image (`--jp-extra-images`, §4.9, default off) | yes, if the confidence policy agrees |
-| `2` | embedding computed from the **EN** image of the same card id (`--en-image-fallback`, D15/FR-4, default off) | **never** (down-weighted) |
+| `2` | embedding computed from the image of the same card id in another TCGdex language (`en`, `de`, `it`, `es`, `pt`, first one with an image; `--en-image-fallback`, D15/FR-4, default off) | **never** (down-weighted) |
 
 A row has an `embeddings` entry if and only if `has_embed != 0`.
 
@@ -176,7 +176,8 @@ Base URL `https://api.tcgdex.net/v2`, one language at a time (`fr`, `ja`).
 3. `GET /v2/{lang}/series/{series_id}` → the set ids of that series.
 4. `GET /v2/{lang}/sets/{set_id}` → the set *and its full card list* (`id`, `localId`, `name`,
    `image`) plus `cardCount` (`total`, `official`). **No per-card request is ever made**: ~1 + ~20 +
-   ~203 requests per language.
+   ~203 requests per language (plus, with `--en-image-fallback`, one set request per fallback
+   language and set that has a card without a visual).
 5. `cards.image_url` stores the TCGdex image *stem* as returned by the API; the concrete asset is
    `{image}/low.webp` (`high.webp` and `low.png` also exist). A card whose `image` field is absent
    gets `image_url = NULL` and `has_embed = 0`.

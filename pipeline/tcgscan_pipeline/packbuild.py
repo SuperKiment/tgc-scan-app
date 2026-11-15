@@ -37,11 +37,11 @@ from pathlib import Path
 from . import config
 from .catalog import TCGDEX_ASSET_PREFIX, CardRow, SetRow, crawl
 from .embed import (
-    HAS_EMBED_EN_IMAGE,
+    HAS_EMBED_FALLBACK_IMAGE,
     HAS_EMBED_NONE,
     EmbedError,
     Embedder,
-    EnImageResolver,
+    FallbackImageResolver,
     embed_card,
     file_sha256,
 )
@@ -170,7 +170,7 @@ class _Stats:
     cards: int = 0
     own_image: int = 0
     limitless_image: int = 0
-    en_image: int = 0
+    fallback_image: int = 0
     no_image: int = 0
     tokens: int = 0
     reused: int = 0
@@ -229,8 +229,8 @@ def build_pack(
         lang: TCGdex language code of the pack, ``fr`` or ``ja``.
         out_dir: directory the artefact is written to; created when missing.
         max_sets: stop after that many sets — the cheap dry run of the whole chain.
-        en_image_fallback: borrow the EN visual of a card that has none in its own language
-            (D15/FR-4, off by default); such rows are tagged ``has_embed = 2``.
+        en_image_fallback: borrow the visual of a card that has none in its own language
+            from the first of ``FALLBACK_IMAGE_LANGS`` that has one (D15/FR-4, off by default); such rows are tagged ``has_embed = 2``.
         jp_extra_images: for a ``ja`` card TCGdex has no image for, use the Limitless TCG one
             (off by default, optional: its failures never fail the build); such rows are tagged
             ``has_embed = 1``, the visual being the card's own JP print.
@@ -314,7 +314,7 @@ def _build_into(
             else stack.enter_context(EmbeddingCache(model_sha256=model.model_sha256))
         )
         resolver = (
-            stack.enter_context(EnImageResolver(client=api)) if en_image_fallback else None
+            stack.enter_context(FallbackImageResolver(client=api)) if en_image_fallback else None
         )
         limitless = (
             stack.enter_context(LimitlessSource())
@@ -348,16 +348,16 @@ def _build_into(
 
         vectors.commit()
         log.info(
-            "%s: %d sets, %d cards, %d vectors (%d own image, %d Limitless, %d EN fallback, "
+            "%s: %d sets, %d cards, %d vectors (%d own image, %d Limitless, %d other-language fallback, "
             "%d reused), "
             "%d cards without a visual, %d OCR tokens",
             lang,
             stats.sets,
             stats.cards,
-            stats.own_image + stats.limitless_image + stats.en_image,
+            stats.own_image + stats.limitless_image + stats.fallback_image,
             stats.own_image,
             stats.limitless_image,
-            stats.en_image,
+            stats.fallback_image,
             stats.reused,
             stats.no_image,
             stats.tokens,
@@ -394,7 +394,7 @@ def _fill(
     embedder: Embedder,
     images: ImageCache,
     cache: EmbeddingCache,
-    resolver: EnImageResolver | None,
+    resolver: FallbackImageResolver | None,
     limitless: LimitlessSource | None,
     max_sets: int | None,
 ) -> _Stats:
@@ -420,7 +420,7 @@ def _fill(
                 embedder=embedder,
                 images=images,
                 cache=cache,
-                en_resolver=resolver,
+                fallback_resolver=resolver,
                 limitless=limitless,
             )
             has_embed = HAS_EMBED_NONE if result is None else result.has_embed
@@ -440,8 +440,8 @@ def _fill(
             else:
                 embed_rows.append((result.card_id, sqlite3.Binary(result.vec)))
                 stats.reused += int(result.reused)
-                if result.has_embed == HAS_EMBED_EN_IMAGE:
-                    stats.en_image += 1
+                if result.has_embed == HAS_EMBED_FALLBACK_IMAGE:
+                    stats.fallback_image += 1
                 elif result.from_limitless:
                     stats.limitless_image += 1
                 else:
@@ -652,8 +652,9 @@ def _main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--en-image-fallback",
         action="store_true",
-        help="borrow the EN visual of a card that has none in its language (D15/FR-4, off by "
-        "default); the rows it produces are tagged has_embed=2",
+        help="borrow the visual of a card that has none in its language from the first of "
+        "FALLBACK_IMAGE_LANGS that has one (D15/FR-4, off by default); the rows it produces are "
+        "tagged has_embed=2",
     )
     parser.add_argument(
         "--jp-extra-images",

@@ -84,8 +84,9 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument(
         "--en-image-fallback",
         action="store_true",
-        help="borrow the EN visual of a card that has none in its language (D15/FR-4, off by "
-        "default); the rows it produces are tagged has_embed=2",
+        help="borrow the visual of a card that has none in its language from the first of "
+        "FALLBACK_IMAGE_LANGS that has one (D15/FR-4, off by default); the rows it produces are "
+        "tagged has_embed=2",
     )
     build.add_argument(
         "--jp-extra-images",

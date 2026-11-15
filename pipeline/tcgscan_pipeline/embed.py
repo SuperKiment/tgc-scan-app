@@ -12,8 +12,9 @@ Unchanged cards are never re-embedded: :class:`~tcgscan_pipeline.embed_cache.Emb
 every vector by ``(card_id, lang, image_sha256, model_sha256)`` (FR-21).
 
 Cards without a visual in their own language yield no vector at all (``has_embed = 0``, FR-3),
-unless an optional source is enabled, both **off by default**: the EN fallback of D15/FR-4 tags
-the rows it produces ``has_embed = 2`` so the app can refuse to pre-check them, while the Limitless
+unless an optional source is enabled, both **off by default**: the other-language fallback of
+D15/FR-4 (``config.FALLBACK_IMAGE_LANGS``) tags the rows it produces ``has_embed = 2`` so the app
+can refuse to pre-check them, while the Limitless
 TCG source of JA visuals (``--jp-extra-images``, :mod:`tcgscan_pipeline.limitless`) is the card's
 own JP print and so keeps ``has_embed = 1``.
 
@@ -35,15 +36,13 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
-from typing import Any
-from urllib.parse import quote
 
 import cv2
 import numpy as np
 import onnxruntime as ort
 
 from . import config
-from .catalog import CardRow, crawl_set
+from .catalog import TCGDEX_ASSET_PREFIX, CardRow, crawl_set
 from .embed_cache import EmbeddingCache
 from .images import ImageCache
 from .limitless import LIMITLESS_LANG, LimitlessSource
@@ -60,12 +59,9 @@ IMAGENET_STD = np.array((0.229, 0.224, 0.225), dtype=np.float32)
 DEFAULT_INTRA_OP_THREADS = 2
 """Threads per ONNX Runtime session; 2 is the configuration measured in docs/models.md §1."""
 
-EN_LANG = "en"
-"""Language the ``--en-image-fallback`` hook borrows a visual from (D15/FR-4)."""
-
 HAS_EMBED_NONE = 0
 HAS_EMBED_OWN_IMAGE = 1
-HAS_EMBED_EN_IMAGE = 2
+HAS_EMBED_FALLBACK_IMAGE = 2
 """``cards.has_embed`` values of ``docs/pack-format.md`` §2.2."""
 
 _SHA_CHUNK_BYTES = 1 << 20
@@ -289,25 +285,26 @@ class EmbedResult:
     """True when the visual is the Limitless TCG one of a JA card TCGdex has no image for."""
 
 
-class EnImageResolver:
-    """Image stem of the EN print of a card id — the ``--en-image-fallback`` hook (D15/FR-4).
+class FallbackImageResolver:
+    """Image stem of the same card id in another TCGdex language — the ``--en-image-fallback`` hook.
 
-    This is the only per-card request of the pipeline (``docs/pack-format.md`` §4.4 forbids them on
-    the normal path): it is made solely for cards that have no visual in their own language, and
-    only when the operator opted in. Answers are memoised, so a card is looked up once per run.
+    One ``GET {lang}/sets/{set_id}`` per ``(lang, set)`` and run, memoised, builds the
+    ``card_id -> stem`` map of that language's print of the set: the per-card request that
+    ``docs/pack-format.md`` §4.4 forbids is never made. Sets are fetched lazily, only for a card
+    that has no visual in its own language and only when the operator opted in.
     """
 
     def __init__(self, *, client: TcgdexClient | None = None) -> None:
         self._owns_client = client is None
         self._client = client or TcgdexClient()
-        self._stems: dict[str, str | None] = {}
+        self._stems: dict[tuple[str, str], dict[str, str]] = {}
 
     def close(self) -> None:
         """Close the underlying client when this resolver created it."""
         if self._owns_client:
             self._client.close()
 
-    def __enter__(self) -> "EnImageResolver":
+    def __enter__(self) -> "FallbackImageResolver":
         return self
 
     def __exit__(
@@ -318,28 +315,39 @@ class EnImageResolver:
     ) -> None:
         self.close()
 
-    def stem(self, card_id: str) -> str | None:
-        """Return the EN image stem of ``card_id``, or ``None`` when there is none.
+    def stem(self, lang: str, set_id: str, card_id: str) -> str | None:
+        """Return the ``lang`` image stem of ``card_id`` (of set ``set_id``), or ``None``.
 
         Raises:
             TcgdexUnavailable: every attempt failed; the release gate turns that into « publish
                 nothing » (FR-22).
         """
-        if card_id in self._stems:
-            return self._stems[card_id]
+        return self._set_stems(lang, set_id).get(card_id)
 
+    def _set_stems(self, lang: str, set_id: str) -> dict[str, str]:
+        key = (lang, set_id)
+        stems = self._stems.get(key)
+        if stems is not None:
+            return stems
+
+        stems = {}
         try:
-            # The id comes from the API and is pasted into the request path: every reserved
-            # character, ``/`` included, is escaped so it stays one segment (like tcgdex.py does).
-            payload: Any = self._client.get_json(f"{EN_LANG}/cards/{quote(card_id, safe='')}")
+            # ``set_detail`` percent-encodes both segments, ``/`` included, so an API-provided id
+            # stays one path segment.
+            payload = self._client.set_detail(lang, set_id)
         except TcgdexNotFound:
-            log.info("%s has no EN print; no fallback visual", card_id)
-            payload = None
-        stem = None
-        if isinstance(payload, dict):
-            stem = str(payload.get("image") or "").strip() or None
-        self._stems[card_id] = stem
-        return stem
+            log.info("%s/%s: no such set in TCGdex; no fallback visuals from it", lang, set_id)
+        else:
+            for entry in payload.get("cards") or []:
+                if not isinstance(entry, dict):
+                    continue
+                card_id = str(entry.get("id") or "").strip()
+                stem = str(entry.get("image") or "").strip()
+                # Same rule as the crawl (§4.5): a stem outside the TCGdex asset prefix is no visual.
+                if card_id and stem.startswith(TCGDEX_ASSET_PREFIX):
+                    stems.setdefault(card_id, stem)
+        self._stems[key] = stems
+        return stems
 
 
 def _is_cached_visual(path: Path) -> bool:
@@ -363,7 +371,7 @@ def embed_card(
     embedder: Embedder,
     images: ImageCache,
     cache: EmbeddingCache | None = None,
-    en_resolver: EnImageResolver | None = None,
+    fallback_resolver: FallbackImageResolver | None = None,
     limitless: LimitlessSource | None = None,
 ) -> EmbedResult | None:
     """Embed one crawled card, reusing the caches, or return ``None`` when it has no visual.
@@ -374,18 +382,20 @@ def embed_card(
         embedder: the loaded model.
         images: visual cache; the image is downloaded only if it is not on disk yet.
         cache: cross-run embedding cache (FR-21); ``None`` disables reuse.
-        en_resolver: EN fallback (D15/FR-4). ``None`` — the default — means the fallback is off,
-            so a card without its own visual simply gets no vector (``has_embed = 0``, FR-3).
+        fallback_resolver: other-language fallback (D15/FR-4), trying
+            ``config.FALLBACK_IMAGE_LANGS`` in order and skipping the card's own language.
+            ``None`` — the default — means the fallback is off, so a card without its own visual
+            simply gets no vector (``has_embed = 0``, FR-3).
         limitless: Limitless TCG source, used only for ``ja`` cards TCGdex has no image for and
-            tried before the EN fallback. ``None`` — the default — means it is off. Its visual is
+            tried before the fallback. ``None`` — the default — means it is off. Its visual is
             the card's own JP print, hence ``has_embed = 1``; it never raises.
 
     Returns:
         The ``EmbedResult`` with ``has_embed = 1`` for the card's own visual (TCGdex or Limitless)
-        and ``2`` for an EN fallback one, or ``None`` when no visual could be obtained.
+        and ``2`` for an other-language one, or ``None`` when no visual could be obtained.
 
     Raises:
-        TcgdexUnavailable: a download or an EN lookup failed every attempt.
+        TcgdexUnavailable: a download or a fallback set lookup failed every attempt.
         EmbedError: the cached file is not a readable image, or the model misbehaved.
     """
     if not lang:
@@ -405,18 +415,30 @@ def embed_card(
                 # abort the build nor stay in the cache; the card goes on to the next source.
                 log.warning("%s: Limitless visual unusable (%s); removed", card.card_id, exc)
                 visual.unlink(missing_ok=True)
-    if path is None and en_resolver is not None and lang != EN_LANG:
-        # The stem lookup is the only per-card request of the pipeline: FR-21 wants it skipped
-        # whenever the EN visual of an earlier run is still cached, so the cache is read first.
-        cached_en = images.path_for(EN_LANG, card.card_id)
-        if _is_cached_visual(cached_en):
-            path = cached_en
-        else:
-            path = images.fetch(EN_LANG, card.card_id, en_resolver.stem(card.card_id))
-        has_embed = HAS_EMBED_EN_IMAGE
+    if path is None and fallback_resolver is not None:
+        path = _fallback_visual(card, lang, images, fallback_resolver)
+        has_embed = HAS_EMBED_FALLBACK_IMAGE
     if path is None:
         return None
     return _embed_path(card, lang, path, has_embed, False, embedder=embedder, cache=cache)
+
+
+def _fallback_visual(
+    card: CardRow, lang: str, images: ImageCache, resolver: FallbackImageResolver
+) -> Path | None:
+    """First visual of ``card``'s id in ``config.FALLBACK_IMAGE_LANGS``, own language excluded."""
+    langs = [other for other in config.FALLBACK_IMAGE_LANGS if other != lang]
+    # The set lookup is a request: FR-21 wants it skipped whenever a visual of an earlier run is
+    # still cached, so every cache is read before the first request.
+    for other in langs:
+        cached = images.path_for(other, card.card_id)
+        if _is_cached_visual(cached):
+            return cached
+    for other in langs:
+        path = images.fetch(other, card.card_id, resolver.stem(other, card.set_id, card.card_id))
+        if path is not None:
+            return path
+    return None
 
 
 def _embed_path(
@@ -483,8 +505,9 @@ def _main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--en-image-fallback",
         action="store_true",
-        help="borrow the EN visual of a card that has none in its language (D15/FR-4, off by "
-        "default); the rows it produces are tagged has_embed=2",
+        help="borrow the visual of a card that has none in its language from the first of "
+        "FALLBACK_IMAGE_LANGS that has one (D15/FR-4, off by default); the rows it produces are "
+        "tagged has_embed=2",
     )
     parser.add_argument(
         "--jp-extra-images",
@@ -541,7 +564,7 @@ def _embed_set(
     """Embed one crawled set through both caches and print one line per card."""
     crawled = crawl_set(lang, set_id)
     cards = crawled.cards if max_cards is None else crawled.cards[:max_cards]
-    resolver = EnImageResolver() if en_fallback else None
+    resolver = FallbackImageResolver() if en_fallback else None
     limitless = LimitlessSource() if jp_extra_images else None
     embedded = 0
     from_limitless = 0
@@ -554,7 +577,7 @@ def _embed_set(
                     embedder=embedder,
                     images=images,
                     cache=cache,
-                    en_resolver=resolver,
+                    fallback_resolver=resolver,
                     limitless=limitless,
                 )
                 if result is None:

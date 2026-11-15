@@ -24,6 +24,11 @@ never by a frozen set list."""
 IMAGE_SUFFIX = "/low.webp"
 """Suffix appended to a card's TCGdex image stem to get the concrete asset to download."""
 
+FALLBACK_IMAGE_LANGS: tuple[str, ...] = ("en", "de", "it", "es", "pt")
+"""TCGdex languages ``--en-image-fallback`` borrows a visual from for a card that has none in its
+own language (same card id, same artwork, other text). Ordered: the first language with an image
+wins, and the card's own language is skipped."""
+
 USER_AGENT = "tcg-scan-app pack pipeline (+https://tcgdex.dev)"
 
 # --- Rate limiting and retries (FR-21, docs/pack-format.md §4.6-§4.7) -------------------------
