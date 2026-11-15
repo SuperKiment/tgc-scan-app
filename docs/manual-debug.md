@@ -13,8 +13,8 @@ The UI is in French; button names below are the labels shown on screen.
 must change it to its own `owner/repo` and rebuild.
 
 Download-based criteria (AC-11 to AC-17) also need at least one `packs-<date>` release marked latest on
-that repository. If none exists, create it first: GitHub > Actions > `packs` > Run workflow (see
-section 2). Without a release, the manifest download fails and only « Continuer sans pack » works in
+that repository. If none exists, create it first: GitHub > Actions > `packs` > Run workflow (AC-5 in
+section 3). Without a release, the manifest download fails and only « Continuer sans pack » works in
 onboarding.
 
 ## 1. Build and install the APK
