@@ -48,6 +48,7 @@ from .embed import (
 from .embed_cache import EmbeddingCache
 from .images import ImageCache
 from .limitless import LIMITLESS_LANG, LimitlessSource
+from .ptcgio import PTCGIO_LANG, PtcgioSource
 from .tcgdex import TcgdexClient, TcgdexError
 
 log = logging.getLogger(__name__)
@@ -170,6 +171,7 @@ class _Stats:
     cards: int = 0
     own_image: int = 0
     limitless_image: int = 0
+    ptcgio_image: int = 0
     fallback_image: int = 0
     no_image: int = 0
     tokens: int = 0
@@ -217,6 +219,7 @@ def build_pack(
     max_sets: int | None = None,
     en_image_fallback: bool = False,
     jp_extra_images: bool = False,
+    fr_extra_images: bool = False,
     keep_db: bool = False,
     client: TcgdexClient | None = None,
     embedder: Embedder | None = None,
@@ -234,6 +237,9 @@ def build_pack(
         jp_extra_images: for a ``ja`` card TCGdex has no image for, use the Limitless TCG one
             (off by default, optional: its failures never fail the build); such rows are tagged
             ``has_embed = 1``, the visual being the card's own JP print.
+        fr_extra_images: for a ``fr`` card still without a visual after the other-language
+            fallback, use the pokemontcg.io one (off by default, optional: its failures never fail
+            the build); such rows are tagged ``has_embed = 2``, the visual being an EN image.
         keep_db: leave the uncompressed ``pack-<lang>.db`` next to the archive, for a local install
             with ``adb push``. It is deleted by default so the output directory holds only the
             publishable artefacts.
@@ -277,6 +283,7 @@ def build_pack(
             max_sets=max_sets,
             en_image_fallback=en_image_fallback,
             jp_extra_images=jp_extra_images,
+            fr_extra_images=fr_extra_images,
             keep_db=keep_db,
             client=client,
             embedder=embedder,
@@ -297,6 +304,7 @@ def _build_into(
     max_sets: int | None,
     en_image_fallback: bool,
     jp_extra_images: bool,
+    fr_extra_images: bool,
     keep_db: bool,
     client: TcgdexClient | None,
     embedder: Embedder | None,
@@ -321,6 +329,11 @@ def _build_into(
             if jp_extra_images and lang == LIMITLESS_LANG
             else None
         )
+        ptcgio = (
+            stack.enter_context(PtcgioSource())
+            if fr_extra_images and lang == PTCGIO_LANG
+            else None
+        )
 
         with contextlib.closing(sqlite3.connect(db_path, isolation_level=None)) as conn:
             # Autocommit plus explicit transactions: one per set, so the long embedding loop never
@@ -338,6 +351,7 @@ def _build_into(
                 cache=vectors,
                 resolver=resolver,
                 limitless=limitless,
+                ptcgio=ptcgio,
                 max_sets=max_sets,
             )
             _write_meta(conn, lang, model.model_id, stats.cards)
@@ -348,16 +362,17 @@ def _build_into(
 
         vectors.commit()
         log.info(
-            "%s: %d sets, %d cards, %d vectors (%d own image, %d Limitless, %d other-language fallback, "
-            "%d reused), "
+            "%s: %d sets, %d cards, %d vectors (%d own image, %d Limitless, %d other-language "
+            "fallback, %d pokemontcg.io, %d reused), "
             "%d cards without a visual, %d OCR tokens",
             lang,
             stats.sets,
             stats.cards,
-            stats.own_image + stats.limitless_image + stats.fallback_image,
+            stats.own_image + stats.limitless_image + stats.fallback_image + stats.ptcgio_image,
             stats.own_image,
             stats.limitless_image,
             stats.fallback_image,
+            stats.ptcgio_image,
             stats.reused,
             stats.no_image,
             stats.tokens,
@@ -396,6 +411,7 @@ def _fill(
     cache: EmbeddingCache,
     resolver: FallbackImageResolver | None,
     limitless: LimitlessSource | None,
+    ptcgio: PtcgioSource | None,
     max_sets: int | None,
 ) -> _Stats:
     """Crawl, embed and insert every set of ``lang``, one transaction per set."""
@@ -422,6 +438,7 @@ def _fill(
                 cache=cache,
                 fallback_resolver=resolver,
                 limitless=limitless,
+                ptcgio=ptcgio,
             )
             has_embed = HAS_EMBED_NONE if result is None else result.has_embed
             card_rows.append(
@@ -440,7 +457,9 @@ def _fill(
             else:
                 embed_rows.append((result.card_id, sqlite3.Binary(result.vec)))
                 stats.reused += int(result.reused)
-                if result.has_embed == HAS_EMBED_FALLBACK_IMAGE:
+                if result.from_ptcgio:
+                    stats.ptcgio_image += 1
+                elif result.has_embed == HAS_EMBED_FALLBACK_IMAGE:
                     stats.fallback_image += 1
                 elif result.from_limitless:
                     stats.limitless_image += 1
@@ -663,6 +682,12 @@ def _main(argv: list[str] | None = None) -> int:
         "the rows it produces are tagged has_embed=1",
     )
     parser.add_argument(
+        "--fr-extra-images",
+        action="store_true",
+        help="for a fr card still without a visual, use the pokemontcg.io one (off by default); "
+        "the rows it produces are tagged has_embed=2",
+    )
+    parser.add_argument(
         "--keep-db",
         action="store_true",
         help="keep the uncompressed pack-<lang>.db next to the archive, to adb-push it to a device",
@@ -678,6 +703,7 @@ def _main(argv: list[str] | None = None) -> int:
             max_sets=args.max_sets,
             en_image_fallback=args.en_image_fallback,
             jp_extra_images=args.jp_extra_images,
+            fr_extra_images=args.fr_extra_images,
             keep_db=args.keep_db,
         )
     # ValueError included: an empty --lang or a negative --max-sets is an operator mistake, and a

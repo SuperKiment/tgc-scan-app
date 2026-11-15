@@ -307,7 +307,7 @@ class LimitlessSource:
                     if status in _RETRYABLE_STATUS:
                         last_reason = f"HTTP {status}"
                     elif not response.ok:
-                        # 3xx included: a redirect would have to be re-validated, so it is refused.
+                        # A 3xx is not followed (allow_redirects=False): its body then fails the image or page check.
                         raise _LimitlessFailure(f"GET {url} -> HTTP {status}")
                     else:
                         payload = read_capped(response, budget)
