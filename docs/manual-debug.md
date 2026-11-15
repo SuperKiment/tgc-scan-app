@@ -125,6 +125,7 @@ rest, in the order to run them:
 Other edge cases worth a look during the scan runs: EC-7 (low light: « Faible lumière : activez la
 lampe », row in « À vérifier »), EC-13 and EC-14 (leave the review without validating: the session is
 kept, nothing is added), EC-15 (airplane mode: card visuals fall back to the scan photo, then a text card),
+a small translate icon next to a card name in the review means the visual match came from another language's reference image (`has_embed = 2`; same card, language to double-check; not the « Carte anglaise » reason),
 EC-17 (pack with a newer `pack_schema`: refused, old pack kept), EC-18 (corrupt import file: refused, no
 change), EC-20 (removing a pack with owned cards: warning, ownerships kept).
 

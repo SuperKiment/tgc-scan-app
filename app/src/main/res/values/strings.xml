@@ -291,6 +291,7 @@
     <string name="review_card_detail">%1$s · %2$s</string>
     <string name="review_card_lang">%1$s · %2$s</string>
     <string name="review_photo_missing">Photo indisponible</string>
+    <string name="review_other_language_image">Reconnue via l\'image d\'une autre langue</string>
     <string name="review_suggested">Proposée</string>
     <string name="review_no_candidate">Aucun candidat. Cherchez la carte à la main ou rejetez-la.</string>
     <string name="review_owned_hint">Déjà dans votre collection : rien n\'est modifié.</string>

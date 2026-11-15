@@ -155,6 +155,14 @@ data class Candidate(
      */
     val hasOwnVisualReference: Boolean get() = hasEmbed == HasEmbed.OWN_IMAGE || fromLearnedReference
 
+    /**
+     * True when the visual hit came from a reference image of another language than the card's pack
+     * (`has_embed = 2`, the pipeline's fallback), not from the pack or a learned vector. The card is
+     * probably right but the cardboard may be in another language; unrelated to [ReviewReason.ENGLISH_CARD].
+     */
+    val matchedOnOtherLanguageImage: Boolean
+        get() = hasEmbed == HasEmbed.EN_IMAGE_FALLBACK && cosine != null && !fromLearnedReference
+
     /** True when the candidate was found in the visual index. */
     val isVisual: Boolean get() = cosine != null
 
