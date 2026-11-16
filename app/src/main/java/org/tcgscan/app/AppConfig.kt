@@ -24,8 +24,12 @@ object AppConfig {
     /** Highest `pack_meta.pack_schema` this build can read; a newer pack is refused (EC-17). */
     const val PACK_SCHEMA = 1
 
-    /** Room schema version, also the backup envelope `schemaVersion` (NFR-9, EC-18). */
-    const val DB_SCHEMA = 1
+    /**
+     * Room schema version, also the backup envelope `schemaVersion` (NFR-9, EC-18). Version 2 added
+     * the on-device learned references (`learned_embeddings`, `scan_detections.embedding`); a
+     * version 1 backup still imports, since only a *newer* envelope is refused.
+     */
+    const val DB_SCHEMA = 2
 
     /** Hard ceiling for the Coil disk cache holding TCGdex visuals (FR-25). */
     const val IMAGE_CACHE_BYTES = 256L * 1024 * 1024

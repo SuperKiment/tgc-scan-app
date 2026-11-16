@@ -35,7 +35,7 @@ python3 -m tcgscan_pipeline build --langs fr,ja --out ../dist
 | command | what it does |
 |---|---|
 | `python3 -m tcgscan_pipeline.tcgdex --probe fr` | smoke-probes the API and prints the series count of a language |
-| `python3 -m tcgscan_pipeline build [--langs fr,ja] [--out dist] [--max-sets N] [--en-image-fallback] [--previous-manifest FILE]` | full run: crawl → images → embed → pack → manifest → guard |
+| `python3 -m tcgscan_pipeline build [--langs fr,ja] [--out dist] [--max-sets N] [--en-image-fallback] [--jp-extra-images] [--fr-extra-images] [--previous-manifest FILE]` | full run: crawl → images → embed → pack → manifest → guard |
 
 The build is **all-or-nothing** (FR-22): either every requested pack *and* `manifest.json` land in
 the output directory, or it is left empty and the process exits non-zero, so the previously
@@ -60,6 +60,8 @@ whole chain without pulling ~20 000 cards.
 | `tcgdex.py` | rate-limited JSON client: 150 ms minimum between requests, 5 attempts with exponential backoff, non-JSON body treated as retryable, `TcgdexUnavailable` on final failure |
 | `catalog.py` | series/set/card crawl, `tcgp` exclusion, canonical `name_norm` |
 | `images.py` | `{image}/low.webp` download into the image cache |
+| `limitless.py` | optional (`--jp-extra-images`) Limitless TCG source of `ja` visuals for cards TCGdex has no image for: one set page per set, 1 s between requests, never raises, vectors tagged `has_embed = 1` |
+| `ptcgio.py` | optional (`--fr-extra-images`) pokemontcg.io source of `fr` visuals for cards no TCGdex language has an image for: one `pokemon-tcg-data` card list per set, 0.25 s between requests, never raises, vectors tagged `has_embed = 2` |
 | `embed.py`, `embed_cache.py` | DINOv2-small int8 embedding and its cross-run SQLite cache |
 | `packbuild.py` | the gzipped SQLite pack |
 | `manifest.py` | writes `manifest.json` (validated with the app's own rules), reads the previously published one (404 tolerated) |
@@ -78,7 +80,18 @@ cheap (FR-21):
 | path | content | key |
 |---|---|---|
 | `.cache/images/<lang>/<card_id>.webp` | downloaded card visuals | file presence |
+| `.cache/images/ja-limitless/<card_id>.png` | Limitless visuals (`--jp-extra-images`) | file presence |
+| `.cache/images/en-ptcgio/<card_id>.png` | pokemontcg.io visuals (`--fr-extra-images`) | file presence |
 | `.cache/embeddings.sqlite` | int8 embedding blobs | `(card_id, lang, image_sha256, model_sha256)` |
+
+`--jp-extra-images` (off by default, on in the CI workflow) adds the Limitless TCG source for `ja`
+cards without a TCGdex image: a failure there (404 set page, network, parse) only leaves the card
+without a visual and never fails the build. See `../docs/pack-format.md` §4.9.
+
+`--fr-extra-images` (off by default, on in the CI workflow) adds the pokemontcg.io source for `fr`
+cards still without a visual after `--en-image-fallback`: only the sets of
+`config.PTCGIO_SET_ALIASES`, tagged `has_embed = 2`, with the same never-fails behaviour. See
+`../docs/pack-format.md` §4.10.
 
 Deleting either only costs time. No image byte ever enters a pack.
 

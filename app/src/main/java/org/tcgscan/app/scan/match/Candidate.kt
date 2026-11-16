@@ -23,7 +23,10 @@ enum class ReviewReason {
     /** Two candidates are within [ScanTuning.MIN_MARGIN]: an identical-art reprint, never a silent pick (EC-11). */
     AMBIGUOUS,
 
-    /** The best candidate has no own visual reference — `has_embed` 0 or 2 (FR-3, D15). */
+    /**
+     * The best candidate has no own visual reference — `has_embed` 0 or 2 and no vector learned on
+     * the device for it (FR-3, D15).
+     */
     NO_VISUAL_REFERENCE,
 
     /** The visual match is strong but neither the name nor the number could confirm it (EC-7). */
@@ -111,8 +114,8 @@ data class OcrAgreement(
 /**
  * One card proposed for a detection, with the evidence that put it there.
  *
- * [cosine] is the int8 cosine of the visual index (docs/pack-format.md §3.3) and is `null` for a
- * candidate found by OCR alone. [score] is the ordering value: [cosine] (or
+ * [cosine] is the int8 cosine of the visual index (docs/pack-format.md §3.3) or of the learned
+ * references (see [fromLearnedReference]) and is `null` for a candidate found by OCR alone. [score] is the ordering value: [cosine] (or
  * [ScanTuning.OCR_ONLY_BASE_SCORE]) plus [OcrAgreement.bonus], minus the EN-fallback penalty of
  * D15. Only [cosine] is ever compared to a threshold.
  */
@@ -138,10 +141,27 @@ data class Candidate(
     val cosine: Float?,
     val score: Float,
     val agreement: OcrAgreement,
+    /**
+     * True when [cosine] comes from a vector learned from a scan the user validated for this very
+     * card, not from the pack. Such a vector is the card's own visual reference whatever
+     * [hasEmbed] says, and it is not an EN-fallback guess, so no penalty applies.
+     */
+    val fromLearnedReference: Boolean = false,
 ) {
 
-    /** True only for `has_embed = 1`: the sole case a detection may be pre-checked (D16/FR-3). */
-    val hasOwnVisualReference: Boolean get() = hasEmbed == HasEmbed.OWN_IMAGE
+    /**
+     * True for `has_embed = 1`, or when the cosine comes from a learned vector: the only cases a
+     * detection may be pre-checked (D16/FR-3).
+     */
+    val hasOwnVisualReference: Boolean get() = hasEmbed == HasEmbed.OWN_IMAGE || fromLearnedReference
+
+    /**
+     * True when the visual hit came from a reference image of another language than the card's pack
+     * (`has_embed = 2`, the pipeline's fallback), not from the pack or a learned vector. The card is
+     * probably right but the cardboard may be in another language; unrelated to [ReviewReason.ENGLISH_CARD].
+     */
+    val matchedOnOtherLanguageImage: Boolean
+        get() = hasEmbed == HasEmbed.EN_IMAGE_FALLBACK && cosine != null && !fromLearnedReference
 
     /** True when the candidate was found in the visual index. */
     val isVisual: Boolean get() = cosine != null
@@ -160,10 +180,14 @@ data class Candidate(
             physicalLang: String,
             cosine: Float?,
             agreement: OcrAgreement,
+            fromLearnedReference: Boolean = false,
         ): Candidate {
             val base = cosine ?: ScanTuning.OCR_ONLY_BASE_SCORE
-            val penalty =
-                if (card.hasEmbed == HasEmbed.EN_IMAGE_FALLBACK) ScanTuning.EN_FALLBACK_PENALTY else 0f
+            val penalty = if (card.hasEmbed == HasEmbed.EN_IMAGE_FALLBACK && !fromLearnedReference) {
+                ScanTuning.EN_FALLBACK_PENALTY
+            } else {
+                0f
+            }
             return Candidate(
                 lang = lang,
                 cardId = card.cardId,
@@ -178,6 +202,7 @@ data class Candidate(
                 cosine = cosine,
                 score = base + agreement.bonus - penalty,
                 agreement = agreement,
+                fromLearnedReference = fromLearnedReference,
             )
         }
     }
@@ -204,7 +229,7 @@ sealed interface MatchOutcome {
      * it (FR-9).
      *
      * The invariants of the policy are enforced here, in the only type that can express a
-     * pre-checked detection: own visual reference, cosine above [ScanTuning.MIN_VISUAL_COSINE],
+     * pre-checked detection: own visual reference (pack image or learned vector), cosine above [ScanTuning.MIN_VISUAL_COSINE],
      * runner-up at least [ScanTuning.MIN_MARGIN] behind, and an OCR confirmation.
      */
     data class Confident(

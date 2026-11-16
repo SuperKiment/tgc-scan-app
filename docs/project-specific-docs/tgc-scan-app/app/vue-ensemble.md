@@ -1,3 +1,12 @@
+9
+| Lignes | Section |
+|---|---|
+| 14-16 | What it is for |
+| 17-48 | Tech |
+| 49-55 | Dependencies |
+| 56-58 | Place in the whole |
+| 59-61 | Tests |
+| 62-65 | Related docs |
 # app
 
 > Repository `tgc-scan-app`, path `tgc-scan-app/app/`. Checked on 2026-11-12 from `app/build.gradle.kts`, `settings.gradle.kts`, `build.gradle.kts`, `gradle/libs.versions.toml`, `app/src/main/AndroidManifest.xml`, `AppConfig.kt`, `TcgScanApp.kt`, `MainActivity.kt`, `ui/Routes.kt`, `data/db/*`, `app/schemas/`, `app/src/main/assets/models/`, `README.md`, `tools/check-foss.sh` (working tree of branch `feat/v1`, partly uncommitted).
@@ -13,7 +22,7 @@ Android app that scans French and Japanese Pokémon cards with the phone camera 
 - Signing: release uses the `TCGSCAN_KEYSTORE_FILE`, `TCGSCAN_KEYSTORE_PASSWORD`, `TCGSCAN_KEY_ALIAS`, `TCGSCAN_KEY_PASSWORD` values (environment, then Gradle properties). If any is missing, the release build falls back to the debug keystore and logs a warning (`signingConfigs.findByName("release") ?: getByName("debug")`).
 - Entry points: `TcgScanApp` (loads OpenCV with `OpenCVLoader.initLocal()`), `MainActivity` (portrait, Compose `setContent`, launches `TcgScanNavHost`); routes declared in `ui/Routes.kt` (scan, collection, catalog, lists, settings as bottom bar; review, set browse, card detail, list detail, about, backup as details).
 - Permissions: CAMERA, INTERNET, ACCESS_NETWORK_STATE; the ONNX Runtime telemetry provider is removed from the manifest; `allowBackup` is false.
-- Database: Room `AppDatabase`, schema version 1 (`AppConfig.DB_SCHEMA = 1`, `app/schemas/org.tcgscan.app.data.db.AppDatabase/1.json`), tables `owned_cards`, `card_lists`, `card_list_items`, `scan_sessions`, `scan_detections`. `DbProvider.MIGRATIONS` is empty and `fallbackToDestructiveMigration()` is not used.
+- Database: Room `AppDatabase`, schema version 2 (`AppConfig.DB_SCHEMA = 2`, exported schemas `app/schemas/org.tcgscan.app.data.db.AppDatabase/1.json` and `2.json`), tables `owned_cards`, `card_lists`, `card_list_items`, `scan_sessions`, `scan_detections` (with the nullable `embedding` blob) and `learned_embeddings` (visual references learned from validated scans, at most 3 per card, not in the JSON backup). `DbProvider.MIGRATIONS` holds `Migration(1, 2)` and `fallbackToDestructiveMigration()` is not used.
 - Assets (`app/src/main/assets/models/`): `embed_dinov2s_int8.onnx`, `ocr_det.onnx`, `ocr_rec_latin.onnx`, `ocr_rec_japan.onnx`, `dict_latin.txt`, `dict_japan.txt`.
 
 Packages under `app/src/main/java/org/tcgscan/app/`:
@@ -26,8 +35,8 @@ Packages under `app/src/main/java/org/tcgscan/app/`:
 | `scan/ocr/` | PP-OCR text detection and recognition, CTC decoding |
 | `scan/text/` | Card text parsing, script detection, text normalisation |
 | `scan/match/` | Candidate model and `Matcher` against the embedding index |
-| `data/` | `CardListRepository` |
-| `data/db/` | Room database, DAOs and entities (ownership, lists, scan sessions) |
+| `data/` | `CardListRepository`, `CollectionRepository`, `LearnedEmbeddingRepository` |
+| `data/db/` | Room database, DAOs and entities (ownership, lists, scan sessions, learned embeddings) |
 | `data/pack/` | Pack catalogue reader, embedding index, install, install state, paths, repository |
 | `data/net/` | HTTP client, manifest service and model, range downloader |
 | `data/backup/` | Backup export and import and their models |

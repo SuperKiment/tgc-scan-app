@@ -21,6 +21,9 @@ object ScanTuning {
     /** Minimum score distance to the runner-up; below it the detection is ambiguous (EC-11). */
     const val MIN_MARGIN = 0.06f
 
+    /** Learned references kept per card (newest first); older ones are trimmed at validation. */
+    const val LEARNED_VECTORS_PER_CARD = 3
+
     /** How many visual neighbours are re-scored with the OCR readings. */
     const val TOP_K = 30
 

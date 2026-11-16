@@ -13,8 +13,8 @@ The UI is in French; button names below are the labels shown on screen.
 must change it to its own `owner/repo` and rebuild.
 
 Download-based criteria (AC-11 to AC-17) also need at least one `packs-<date>` release marked latest on
-that repository. If none exists, create it first: GitHub > Actions > `packs` > Run workflow (see
-section 2). Without a release, the manifest download fails and only « Continuer sans pack » works in
+that repository. If none exists, create it first: GitHub > Actions > `packs` > Run workflow (AC-5 in
+section 3). Without a release, the manifest download fails and only « Continuer sans pack » works in
 onboarding.
 
 ## 1. Build and install the APK
@@ -125,8 +125,30 @@ rest, in the order to run them:
 Other edge cases worth a look during the scan runs: EC-7 (low light: « Faible lumière : activez la
 lampe », row in « À vérifier »), EC-13 and EC-14 (leave the review without validating: the session is
 kept, nothing is added), EC-15 (airplane mode: card visuals fall back to the scan photo, then a text card),
+a small translate icon next to a card name in the review means the visual match came from another language's reference image (`has_embed = 2`; same card, language to double-check; not the « Carte anglaise » reason),
 EC-17 (pack with a newer `pack_schema`: refused, old pack kept), EC-18 (corrupt import file: refused, no
 change), EC-20 (removing a pack with owned cards: warning, ownerships kept).
+
+### On-device learning (schema 2)
+
+When a detection is validated in the review (pre-ticked or picked by hand, search included), the
+embedding of the scan is kept as an extra visual reference of the chosen card, under its pack language
+(an English card filed under its French id is learned under `fr`). At most the 3 newest vectors are kept
+per card. The matcher searches them next to the pack vectors, so a card with `has_embed` 0 or 2 can be
+pre-ticked on a later scan once it was validated once (same thresholds, and the OCR must still confirm
+the name or the number). They are not exported in the JSON backup, and « Remplacer » leaves them alone.
+
+Check: scan a card without own visual reference (typically a Japanese one), validate it, scan it again in
+a new burst: it should now land in « Reconnues » instead of « À vérifier ». Then, with the database pulled
+as in section 2:
+
+```bash
+sqlite3 /tmp/tcgscan.db "SELECT count(*) FROM learned_embeddings; SELECT lang, card_id, length(vector) FROM learned_embeddings;"
+```
+
+`length(vector)` must be 384 and a card never has more than 3 rows. Settings > « Données » > « Oublier les
+cartes apprises » (confirmation dialog) empties the table; the row shows the live count. An upgrade from a
+schema 1 install keeps the collection (migration 1 to 2, no data loss).
 
 ## 4. Reporting
 

@@ -4,12 +4,15 @@ import android.database.SQLException
 import android.util.Log
 import androidx.room.withTransaction
 import org.tcgscan.app.data.db.AppDatabase
+import org.tcgscan.app.data.db.LearnedEmbedding
 import org.tcgscan.app.data.db.OwnedCard
 import org.tcgscan.app.data.db.ScanDetectionState
 import org.tcgscan.app.data.db.ScanSessionStatus
 import org.tcgscan.app.data.net.describe
+import org.tcgscan.app.data.pack.EmbeddingIndex
 import org.tcgscan.app.data.pack.PackPaths
 import org.tcgscan.app.scan.ScanPhotoStore
+import org.tcgscan.app.scan.ScanTuning
 
 /**
  * The only writer of `owned_cards` (FR-12): the manual toggle of the catalogue ([setOwned]) and the
@@ -51,8 +54,9 @@ class CollectionRepository(
      * Validates a scan review: the only way a scanned card enters the collection (FR-9).
      *
      * Everything is written by one `withTransaction`, or nothing is: each [ReviewDecision.Commit]
-     * inserts its [OwnedCard], removes the card from the wishlist only (FR-17/AC-15) and marks its
-     * detection `COMMITTED`; each [ReviewDecision.Reject] marks its detection `REJECTED`; the
+     * inserts its [OwnedCard], removes the card from the wishlist only (FR-17/AC-15), marks its
+     * detection `COMMITTED` and, when the detection kept an embedding, learns it as an extra visual
+     * reference of the chosen card (see [LearnedEmbedding]); each [ReviewDecision.Reject] marks its detection `REJECTED`; the
      * session becomes `COMMITTED`. A detection with no decision stays untouched — an unchecked row
      * adds nothing (FR-9) — and a card already owned is left as it is (FR-10/EC-9): ownership is
      * binary, so its original `added_at` and `physical_lang` win.
@@ -124,6 +128,7 @@ class CollectionRepository(
                         ),
                     )
                     db.cardListDao().removeFromWishlist(decision.lang, decision.cardId)
+                    learn(rows.getValue(decision.detectionId).embedding, decision, now)
                     sessions.setDetectionDecision(
                         detectionId = decision.detectionId,
                         state = ScanDetectionState.COMMITTED,
@@ -141,6 +146,26 @@ class CollectionRepository(
         }
         sessions.setSessionStatus(sessionId, ScanSessionStatus.COMMITTED)
         return CommitResult.Success(committed = committed, rejected = rejected)
+    }
+
+    /**
+     * Keeps the embedding of a validated scan as a visual reference of the card, under the pack
+     * language of the decision (an English card filed under its French id is learned under `"fr"`),
+     * then trims the card to its newest [ScanTuning.LEARNED_VECTORS_PER_CARD]. Runs in the
+     * transaction of the review. A detection without an embedding teaches nothing.
+     */
+    private suspend fun learn(embedding: ByteArray?, decision: ReviewDecision.Commit, now: Long) {
+        if (embedding == null || embedding.size != EmbeddingIndex.EXPECTED_DIM) return
+        val dao = db.learnedEmbeddingDao()
+        dao.insert(
+            LearnedEmbedding(
+                lang = decision.lang,
+                cardId = decision.cardId,
+                vector = embedding,
+                createdAt = now,
+            ),
+        )
+        dao.trim(decision.lang, decision.cardId, ScanTuning.LEARNED_VECTORS_PER_CARD)
     }
 
     private suspend fun deletePhotos(sessionId: Long) {

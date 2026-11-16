@@ -216,6 +216,14 @@
     <string name="settings_section_data">Données</string>
     <string name="settings_clear_image_cache">Vider le cache d\'images</string>
     <string name="settings_clear_image_cache_summary">Les visuels seront retéléchargés depuis TCGdex à la demande.</string>
+    <string name="settings_forget_learned">Oublier les cartes apprises</string>
+    <plurals name="settings_forget_learned_summary">
+        <item quantity="one">%1$d référence apprise sur vos scans validés. Elle aide à reconnaître vos cartes.</item>
+        <item quantity="other">%1$d références apprises sur vos scans validés. Elles aident à reconnaître vos cartes.</item>
+    </plurals>
+    <string name="settings_forget_learned_title">Oublier les cartes apprises ?</string>
+    <string name="settings_forget_learned_message">Les références visuelles apprises sur vos scans validés seront supprimées. Votre collection n\'est pas modifiée ; la reconnaissance s\'appuiera de nouveau sur les seuls packs.</string>
+    <string name="settings_forget_learned_confirm">Oublier</string>
     <string name="settings_entry_backup">Sauvegarde et restauration</string>
     <string name="settings_entry_about">À propos</string>
 
@@ -225,6 +233,7 @@
     <string name="settings_message_pack_absent">%1$s : aucun pack à supprimer.</string>
     <string name="settings_message_removal_failed">Suppression impossible : %1$s</string>
     <string name="settings_message_image_cache_cleared">Cache d\'images vidé.</string>
+    <string name="settings_message_learned_forgotten">Cartes apprises oubliées.</string>
 
     <!-- About screen: the FR-29 mentions, the licences and the configured repository (D13) -->
     <string name="about_fan_notice">Projet de fan non affilié à Nintendo, The Pokémon Company ou Creatures. Pokémon et les noms des cartes sont des marques de leurs propriétaires respectifs.</string>
@@ -282,6 +291,7 @@
     <string name="review_card_detail">%1$s · %2$s</string>
     <string name="review_card_lang">%1$s · %2$s</string>
     <string name="review_photo_missing">Photo indisponible</string>
+    <string name="review_other_language_image">Reconnue via l\'image d\'une autre langue</string>
     <string name="review_suggested">Proposée</string>
     <string name="review_no_candidate">Aucun candidat. Cherchez la carte à la main ou rejetez-la.</string>
     <string name="review_owned_hint">Déjà dans votre collection : rien n\'est modifié.</string>

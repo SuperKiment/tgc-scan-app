@@ -7,7 +7,8 @@ import androidx.room.TypeConverters
 import org.tcgscan.app.AppConfig
 
 /**
- * The private database of the app: ownership, lists and scan sessions. Nothing coming from a pack
+ * The private database of the app: ownership, lists, scan sessions and the
+ * visual references learned from the user's validated scans. Nothing coming from a pack
  * is stored here (FR-20), which is what lets a pack be installed, updated or removed without ever
  * touching the collection (FR-23, AC-17).
  *
@@ -22,6 +23,7 @@ import org.tcgscan.app.AppConfig
         CardListItem::class,
         ScanSessionEntity::class,
         ScanDetectionEntity::class,
+        LearnedEmbedding::class,
     ],
     version = AppConfig.DB_SCHEMA,
     exportSchema = true,
@@ -34,6 +36,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun cardListDao(): CardListDao
 
     abstract fun scanSessionDao(): ScanSessionDao
+
+    abstract fun learnedEmbeddingDao(): LearnedEmbeddingDao
 }
 
 /**

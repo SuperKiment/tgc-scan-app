@@ -6,6 +6,7 @@ import org.tcgscan.app.TcgScanApp
 import org.tcgscan.app.data.AppPrefs
 import org.tcgscan.app.data.CardListRepository
 import org.tcgscan.app.data.CollectionRepository
+import org.tcgscan.app.data.LearnedEmbeddingRepository
 import org.tcgscan.app.data.db.AppDatabase
 import org.tcgscan.app.data.db.DbProvider
 import org.tcgscan.app.data.net.Http
@@ -52,6 +53,10 @@ class AppContainer(context: Context) {
 
     val scanSessionRepository: ScanSessionRepository by lazy {
         ScanSessionRepository(db.scanSessionDao(), db.ownershipDao(), scanPhotoStore)
+    }
+
+    val learnedEmbeddingRepository: LearnedEmbeddingRepository by lazy {
+        LearnedEmbeddingRepository(db.learnedEmbeddingDao())
     }
 
     /** One ORT environment for the process; the scan pipeline opens and closes its own sessions. */

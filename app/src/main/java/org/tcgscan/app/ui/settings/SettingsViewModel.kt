@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.tcgscan.app.AppConfig
 import org.tcgscan.app.data.AppPrefs
+import org.tcgscan.app.data.LearnedEmbeddingRepository
 import org.tcgscan.app.data.db.OwnershipDao
 import org.tcgscan.app.data.net.ManifestResult
 import org.tcgscan.app.data.net.PackManifest
@@ -36,6 +37,9 @@ import org.tcgscan.app.ui.image.ImageLoaderProvider
  * install, update with the size announced *before* the download, removal with the EC-20 warning
  * (FR-23, FR-24) — and the bounded image cache (FR-25).
  *
+ * « Oublier les cartes apprises » (two steps, like a pack removal) deletes the references learned
+ * from the user's validated scans through [LearnedEmbeddingRepository].
+ *
  * Every pack decision goes through [PackRepository]; the only reason this ViewModel touches Room is
  * [OwnershipDao.countByLang], which feeds the removal warning (the pack layer never reads Room).
  * No outcome is surfaced as an exception: the UI renders [PackInstallState] and [SettingsMessage].
@@ -44,6 +48,7 @@ class SettingsViewModel(
     private val prefs: AppPrefs,
     private val packs: PackRepository,
     private val ownership: OwnershipDao,
+    private val learned: LearnedEmbeddingRepository,
     private val imageLoader: ImageLoader,
 ) : ViewModel() {
 
@@ -55,9 +60,10 @@ class SettingsViewModel(
         packs.installed,
         packs.latestManifest,
         installStates,
-        screen,
+        // combine() takes five flows at most: the screen state travels with the learned count.
+        combine(screen, learned.observeCount(), ::Pair),
         prefs.defaultScanLang,
-    ) { installed, manifest, states, screenState, storedLang ->
+    ) { installed, manifest, states, (screenState, learnedCount), storedLang ->
         SettingsUiState(
             defaultScanLang = effectiveDefaultScanLang(storedLang, installed.keys),
             packs = langsOf(installed.keys, manifest).map { lang ->
@@ -72,6 +78,8 @@ class SettingsViewModel(
             },
             manifest = screenState.manifest,
             pendingRemoval = screenState.pendingRemoval,
+            learnedCount = learnedCount,
+            confirmingForget = screenState.confirmingForget,
             message = screenState.message,
         )
     }.stateIn(
@@ -172,6 +180,24 @@ class SettingsViewModel(
         }
     }
 
+    /** First step of « Oublier les cartes apprises »: asks for the confirmation. */
+    fun askForget() {
+        screen.update { it.copy(confirmingForget = true) }
+    }
+
+    fun dismissForget() {
+        screen.update { it.copy(confirmingForget = false) }
+    }
+
+    /** Second step: deletes every learned reference; the collection is untouched. */
+    fun confirmForget() {
+        screen.update { it.copy(confirmingForget = false) }
+        viewModelScope.launch {
+            learned.forget()
+            screen.update { it.copy(message = SettingsMessage.LearnedForgotten) }
+        }
+    }
+
     /** Called once the transient [SettingsUiState.message] has been displayed. */
     fun messageShown() {
         screen.update { it.copy(message = null) }
@@ -219,6 +245,7 @@ class SettingsViewModel(
     private data class ScreenState(
         val manifest: ManifestUiState = ManifestUiState.Idle,
         val pendingRemoval: PendingRemoval? = null,
+        val confirmingForget: Boolean = false,
         val message: SettingsMessage? = null,
     )
 
@@ -237,6 +264,7 @@ class SettingsViewModel(
                         prefs = container.appPrefs,
                         packs = container.packRepository,
                         ownership = container.db.ownershipDao(),
+                        learned = container.learnedEmbeddingRepository,
                         imageLoader = container.imageLoader,
                     )
                 }
@@ -251,6 +279,9 @@ data class SettingsUiState(
     val packs: List<PackUiState> = emptyList(),
     val manifest: ManifestUiState = ManifestUiState.Idle,
     val pendingRemoval: PendingRemoval? = null,
+    /** Learned visual references stored on the device (3 per validated card at most). */
+    val learnedCount: Int = 0,
+    val confirmingForget: Boolean = false,
     val message: SettingsMessage? = null,
 ) {
 
@@ -329,4 +360,6 @@ sealed interface SettingsMessage {
     data class RemovalFailed(val message: String) : SettingsMessage
 
     data object ImageCacheCleared : SettingsMessage
+
+    data object LearnedForgotten : SettingsMessage
 }

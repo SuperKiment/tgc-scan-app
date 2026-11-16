@@ -31,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -43,7 +44,7 @@ import org.tcgscan.app.ui.Routes
 
 /**
  * Settings: the default scan language (FR-5), the language packs with their size, update, install
- * and removal actions (FR-23, FR-24), the bounded image cache (FR-25) and the entries to Backup and
+ * and removal actions (FR-23, FR-24), the bounded image cache (FR-25), the learned references and the entries to Backup and
  * About (FR-29).
  *
  * Nothing here writes to the collection: removing a pack keeps every possession (EC-20).
@@ -121,6 +122,23 @@ fun SettingsRoute(nav: NavController) {
                 modifier = Modifier.clickable(onClick = viewModel::clearImageCache),
             )
             ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_forget_learned)) },
+                supportingContent = {
+                    Text(
+                        pluralStringResource(
+                            R.plurals.settings_forget_learned_summary,
+                            state.learnedCount,
+                            state.learnedCount,
+                        ),
+                    )
+                },
+                // Nothing to forget: the row stays visible so the count is, but is not actionable.
+                modifier = Modifier.clickable(
+                    enabled = state.learnedCount > 0,
+                    onClick = viewModel::askForget,
+                ),
+            )
+            ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_entry_backup)) },
                 modifier = Modifier.clickable { nav.navigate(Routes.BACKUP) },
             )
@@ -129,6 +147,24 @@ fun SettingsRoute(nav: NavController) {
                 modifier = Modifier.clickable { nav.navigate(Routes.ABOUT) },
             )
         }
+    }
+
+    if (state.confirmingForget) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissForget,
+            title = { Text(stringResource(R.string.settings_forget_learned_title)) },
+            text = { Text(stringResource(R.string.settings_forget_learned_message)) },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmForget) {
+                    Text(stringResource(R.string.settings_forget_learned_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissForget) {
+                    Text(stringResource(R.string.settings_remove_cancel))
+                }
+            },
+        )
     }
 
     // EC-20: the warning is shown before anything is deleted, and the possessions are kept either
@@ -277,4 +313,7 @@ private fun messageText(message: SettingsMessage): String = when (message) {
 
     SettingsMessage.ImageCacheCleared ->
         stringResource(R.string.settings_message_image_cache_cleared)
+
+    SettingsMessage.LearnedForgotten ->
+        stringResource(R.string.settings_message_learned_forgotten)
 }

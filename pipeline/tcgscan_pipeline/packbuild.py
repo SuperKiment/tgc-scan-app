@@ -37,16 +37,18 @@ from pathlib import Path
 from . import config
 from .catalog import TCGDEX_ASSET_PREFIX, CardRow, SetRow, crawl
 from .embed import (
-    HAS_EMBED_EN_IMAGE,
+    HAS_EMBED_FALLBACK_IMAGE,
     HAS_EMBED_NONE,
     EmbedError,
     Embedder,
-    EnImageResolver,
+    FallbackImageResolver,
     embed_card,
     file_sha256,
 )
 from .embed_cache import EmbeddingCache
 from .images import ImageCache
+from .limitless import LIMITLESS_LANG, LimitlessSource
+from .ptcgio import PTCGIO_LANG, PtcgioSource
 from .tcgdex import TcgdexClient, TcgdexError
 
 log = logging.getLogger(__name__)
@@ -168,7 +170,9 @@ class _Stats:
     sets: int = 0
     cards: int = 0
     own_image: int = 0
-    en_image: int = 0
+    limitless_image: int = 0
+    ptcgio_image: int = 0
+    fallback_image: int = 0
     no_image: int = 0
     tokens: int = 0
     reused: int = 0
@@ -214,6 +218,8 @@ def build_pack(
     *,
     max_sets: int | None = None,
     en_image_fallback: bool = False,
+    jp_extra_images: bool = False,
+    fr_extra_images: bool = False,
     keep_db: bool = False,
     client: TcgdexClient | None = None,
     embedder: Embedder | None = None,
@@ -226,8 +232,14 @@ def build_pack(
         lang: TCGdex language code of the pack, ``fr`` or ``ja``.
         out_dir: directory the artefact is written to; created when missing.
         max_sets: stop after that many sets — the cheap dry run of the whole chain.
-        en_image_fallback: borrow the EN visual of a card that has none in its own language
-            (D15/FR-4, off by default); such rows are tagged ``has_embed = 2``.
+        en_image_fallback: borrow the visual of a card that has none in its own language
+            from the first of ``FALLBACK_IMAGE_LANGS`` that has one (D15/FR-4, off by default); such rows are tagged ``has_embed = 2``.
+        jp_extra_images: for a ``ja`` card TCGdex has no image for, use the Limitless TCG one
+            (off by default, optional: its failures never fail the build); such rows are tagged
+            ``has_embed = 1``, the visual being the card's own JP print.
+        fr_extra_images: for a ``fr`` card still without a visual after the other-language
+            fallback, use the pokemontcg.io one (off by default, optional: its failures never fail
+            the build); such rows are tagged ``has_embed = 2``, the visual being an EN image.
         keep_db: leave the uncompressed ``pack-<lang>.db`` next to the archive, for a local install
             with ``adb push``. It is deleted by default so the output directory holds only the
             publishable artefacts.
@@ -270,6 +282,8 @@ def build_pack(
             lang,
             max_sets=max_sets,
             en_image_fallback=en_image_fallback,
+            jp_extra_images=jp_extra_images,
+            fr_extra_images=fr_extra_images,
             keep_db=keep_db,
             client=client,
             embedder=embedder,
@@ -289,6 +303,8 @@ def _build_into(
     *,
     max_sets: int | None,
     en_image_fallback: bool,
+    jp_extra_images: bool,
+    fr_extra_images: bool,
     keep_db: bool,
     client: TcgdexClient | None,
     embedder: Embedder | None,
@@ -306,7 +322,17 @@ def _build_into(
             else stack.enter_context(EmbeddingCache(model_sha256=model.model_sha256))
         )
         resolver = (
-            stack.enter_context(EnImageResolver(client=api)) if en_image_fallback else None
+            stack.enter_context(FallbackImageResolver(client=api)) if en_image_fallback else None
+        )
+        limitless = (
+            stack.enter_context(LimitlessSource())
+            if jp_extra_images and lang == LIMITLESS_LANG
+            else None
+        )
+        ptcgio = (
+            stack.enter_context(PtcgioSource())
+            if fr_extra_images and lang == PTCGIO_LANG
+            else None
         )
 
         with contextlib.closing(sqlite3.connect(db_path, isolation_level=None)) as conn:
@@ -324,6 +350,8 @@ def _build_into(
                 images=visuals,
                 cache=vectors,
                 resolver=resolver,
+                limitless=limitless,
+                ptcgio=ptcgio,
                 max_sets=max_sets,
             )
             _write_meta(conn, lang, model.model_id, stats.cards)
@@ -334,14 +362,17 @@ def _build_into(
 
         vectors.commit()
         log.info(
-            "%s: %d sets, %d cards, %d vectors (%d own image, %d EN fallback, %d reused), "
+            "%s: %d sets, %d cards, %d vectors (%d own image, %d Limitless, %d other-language "
+            "fallback, %d pokemontcg.io, %d reused), "
             "%d cards without a visual, %d OCR tokens",
             lang,
             stats.sets,
             stats.cards,
-            stats.own_image + stats.en_image,
+            stats.own_image + stats.limitless_image + stats.fallback_image + stats.ptcgio_image,
             stats.own_image,
-            stats.en_image,
+            stats.limitless_image,
+            stats.fallback_image,
+            stats.ptcgio_image,
             stats.reused,
             stats.no_image,
             stats.tokens,
@@ -378,7 +409,9 @@ def _fill(
     embedder: Embedder,
     images: ImageCache,
     cache: EmbeddingCache,
-    resolver: EnImageResolver | None,
+    resolver: FallbackImageResolver | None,
+    limitless: LimitlessSource | None,
+    ptcgio: PtcgioSource | None,
     max_sets: int | None,
 ) -> _Stats:
     """Crawl, embed and insert every set of ``lang``, one transaction per set."""
@@ -403,7 +436,9 @@ def _fill(
                 embedder=embedder,
                 images=images,
                 cache=cache,
-                en_resolver=resolver,
+                fallback_resolver=resolver,
+                limitless=limitless,
+                ptcgio=ptcgio,
             )
             has_embed = HAS_EMBED_NONE if result is None else result.has_embed
             card_rows.append(
@@ -422,8 +457,12 @@ def _fill(
             else:
                 embed_rows.append((result.card_id, sqlite3.Binary(result.vec)))
                 stats.reused += int(result.reused)
-                if result.has_embed == HAS_EMBED_EN_IMAGE:
-                    stats.en_image += 1
+                if result.from_ptcgio:
+                    stats.ptcgio_image += 1
+                elif result.has_embed == HAS_EMBED_FALLBACK_IMAGE:
+                    stats.fallback_image += 1
+                elif result.from_limitless:
+                    stats.limitless_image += 1
                 else:
                     stats.own_image += 1
             token_rows.extend((card.card_id, token) for token in ocr_tokens(card, set_row))
@@ -632,8 +671,21 @@ def _main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--en-image-fallback",
         action="store_true",
-        help="borrow the EN visual of a card that has none in its language (D15/FR-4, off by "
-        "default); the rows it produces are tagged has_embed=2",
+        help="borrow the visual of a card that has none in its language from the first of "
+        "FALLBACK_IMAGE_LANGS that has one (D15/FR-4, off by default); the rows it produces are "
+        "tagged has_embed=2",
+    )
+    parser.add_argument(
+        "--jp-extra-images",
+        action="store_true",
+        help="for a ja card TCGdex has no image for, use the Limitless TCG one (off by default); "
+        "the rows it produces are tagged has_embed=1",
+    )
+    parser.add_argument(
+        "--fr-extra-images",
+        action="store_true",
+        help="for a fr card still without a visual, use the pokemontcg.io one (off by default); "
+        "the rows it produces are tagged has_embed=2",
     )
     parser.add_argument(
         "--keep-db",
@@ -650,6 +702,8 @@ def _main(argv: list[str] | None = None) -> int:
             args.out,
             max_sets=args.max_sets,
             en_image_fallback=args.en_image_fallback,
+            jp_extra_images=args.jp_extra_images,
+            fr_extra_images=args.fr_extra_images,
             keep_db=args.keep_db,
         )
     # ValueError included: an empty --lang or a negative --max-sets is an operator mistake, and a

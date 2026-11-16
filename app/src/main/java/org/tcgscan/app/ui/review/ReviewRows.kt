@@ -5,11 +5,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -175,16 +179,27 @@ internal fun RowDivider() {
     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 }
 
-/** Name, then « extension · N° 136/201 » and the language the card is filed under. */
+/** Name (with a small icon when matched on another language's image), then « extension · N° 136/201 » and the language the card is filed under. */
 @Composable
 internal fun CardSummary(card: Candidate, modifier: Modifier) {
     Column(modifier = modifier) {
-        Text(
-            text = card.name,
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = card.name,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            if (card.matchedOnOtherLanguageImage) {
+                Icon(
+                    imageVector = Icons.Outlined.Translate,
+                    contentDescription = stringResource(R.string.review_other_language_image),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
         val number = stringResource(R.string.catalog_card_number, card.printedNumber)
         val detail = if (card.setName.isBlank()) number else {
             stringResource(R.string.review_card_detail, card.setName, number)

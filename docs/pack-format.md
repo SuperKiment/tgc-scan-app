@@ -105,8 +105,8 @@ one bundled in its assets; such a pack must not be used for visual matching.
 | value | meaning | may be pre-checked after a scan? |
 |---|---|---|
 | `0` | no visual reference (no TCGdex image) — OCR-only card (FR-3) | **never** |
-| `1` | embedding computed from the image of this very card, in this language | yes, if the confidence policy agrees |
-| `2` | embedding computed from the **EN** image of the same card id (`--en-image-fallback`, D15/FR-4, default off) | **never** (down-weighted) |
+| `1` | embedding computed from the image of this very card, in this language: the TCGdex image or, for a `ja` card TCGdex has none for, the Limitless TCG image (`--jp-extra-images`, §4.9, default off) | yes, if the confidence policy agrees |
+| `2` | embedding computed from the image of the same card in another language: the same card id in another TCGdex language (`en`, `de`, `it`, `es`, `pt`, first one with an image; `--en-image-fallback`, D15/FR-4, default off) or, for a `fr` card no TCGdex language has an image for, the EN image of pokemontcg.io (`--fr-extra-images`, §4.10, default off) | **never** (down-weighted) |
 
 A row has an `embeddings` entry if and only if `has_embed != 0`.
 
@@ -176,7 +176,8 @@ Base URL `https://api.tcgdex.net/v2`, one language at a time (`fr`, `ja`).
 3. `GET /v2/{lang}/series/{series_id}` → the set ids of that series.
 4. `GET /v2/{lang}/sets/{set_id}` → the set *and its full card list* (`id`, `localId`, `name`,
    `image`) plus `cardCount` (`total`, `official`). **No per-card request is ever made**: ~1 + ~20 +
-   ~203 requests per language.
+   ~203 requests per language (plus, with `--en-image-fallback`, one set request per fallback
+   language and set that has a card without a visual).
 5. `cards.image_url` stores the TCGdex image *stem* as returned by the API; the concrete asset is
    `{image}/low.webp` (`high.webp` and `low.png` also exist). A card whose `image` field is absent
    gets `image_url = NULL` and `has_embed = 0`.
@@ -195,6 +196,40 @@ Base URL `https://api.tcgdex.net/v2`, one language at a time (`fr`, `ja`).
    `pipeline/.cache/embeddings.sqlite`, keyed by
    `(card_id, lang, image_sha256, model_sha256)`, so unchanged cards are never re-downloaded or
    re-embedded across runs (FR-21).
+9. Optional extra source of `ja` visuals, Limitless TCG (`--jp-extra-images`, default off). For a
+   `ja` card TCGdex has no image for, the pipeline reads the set page
+   `https://limitlesstcg.com/cards/jp/<CODE>` (one request per set, memoised; `<CODE>` is the
+   TCGdex set id, except `SV-P` → `SVP` and `M-P` → `MP`) and downloads the card's PNG (`_SM`
+   size, 274×381 px, the closest to TCGdex's `low.webp`). Cards are matched on `int(localId)`
+   (the Limitless number is not zero-padded). Images are cached as
+   `pipeline/.cache/images/ja-limitless/<card_id>.png`. The vector is tagged `has_embed = 1`: the
+   image is the JP print itself. Politeness: ≥ 1 s between two requests, a generic User-Agent, no
+   redirect followed; an image that does not decode is never cached, and the source switches
+   itself off after 3 failed requests in a row or 150 minutes of run time. The source is
+   **optional**: a missing page (about 64 JA sets have none), a
+   missing card or any network or parse failure only leaves the card without a visual
+   (`has_embed = 0`); it never fails the build nor counts toward the 2 % guard. The pack format is
+   unchanged and no image byte enters a pack.
+10. Optional extra source of `fr` visuals, pokemontcg.io (`--fr-extra-images`, default off). For a
+    `fr` card still without a visual after the other-language fallback (§4.4), whose TCGdex set is
+    in `config.PTCGIO_SET_ALIASES` (TCGdex FR set id → pokemontcg.io set id; only sets whose
+    numbering was checked to be the same: Shiny Vaults, Trainer Galleries, Galarian Gallery,
+    Celebrations Classic Collection, McDonald's 2011–2012 and 2014–2017, 2021–2022, EX Trainer Kits,
+    some promos…), the pipeline reads the open `pokemon-tcg-data` card list of the set
+    (`https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/cards/en/<set>.json`,
+    one request per set, memoised) and downloads the `images.small` PNG of the card from
+    `https://images.pokemontcg.io/`. The pokemontcg.io API is never called. The card is matched on
+    its `localId` with the digit padding ignored (`SV004` = `SV4`, `H01` = `H1`, `%3F` = `?`); the
+    Celebrations Classic Collection, numbered differently, uses `config.PTCGIO_NUMBER_OVERRIDES`.
+    Sets hosted on another image host (Mega Evolution, 30th Celebration) are not covered. Images are
+    cached as `pipeline/.cache/images/en-ptcgio/<card_id>.png`. The vector is tagged
+    `has_embed = 2`: the image is an EN print of the same card. Politeness: ≥ 0.25 s between two
+    requests, a generic User-Agent, no redirect followed; an image that does not decode is never
+    cached, and the source switches itself off after 3 failed requests in a row or 30 minutes of run
+    time. The source is **optional**: an unmapped set, a card the data does not list or any network
+    or parse failure only leaves the card without a visual (`has_embed = 0`); it never fails the
+    build nor counts toward the 2 % guard. The pack format is unchanged and no image byte enters a
+    pack.
 
 ---
 

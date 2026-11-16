@@ -57,7 +57,7 @@ class EmbeddingIndex private constructor(
 
         val q = quantizedQuery
         for (d in 0 until dim) {
-            q[d] = (query[d] * QUANT_SCALE).roundToInt().coerceIn(-QUANT_SCALE, QUANT_SCALE)
+            q[d] = quantize(query[d])
         }
 
         var filled = 0
@@ -98,6 +98,35 @@ class EmbeddingIndex private constructor(
         const val QUANT_SCALE = 127
 
         private const val COSINE_DIVISOR = (QUANT_SCALE * QUANT_SCALE).toFloat()
+
+        /** One component of an L2-normalised embedding, `round(v × 127)` clipped to `[-127, 127]`. */
+        private fun quantize(component: Float): Int =
+            (component * QUANT_SCALE).roundToInt().coerceIn(-QUANT_SCALE, QUANT_SCALE)
+
+        /**
+         * [embedding] as the int8 bytes a pack stores (docs §3.3): the single place the on-device
+         * vectors are quantised, for the query of [topK] and for the learned references alike.
+         */
+        fun quantize(embedding: FloatArray): ByteArray =
+            ByteArray(embedding.size) { quantize(embedding[it]).toByte() }
+
+        /**
+         * A small in-memory index over already quantised vectors, one `(cardId, vector)` pair per
+         * row — the learned references of one language. A card may appear several times. Vectors
+         * that are not exactly [EXPECTED_DIM] bytes are skipped.
+         */
+        fun fromVectors(lang: String, rows: List<Pair<String, ByteArray>>): EmbeddingIndex {
+            val valid = rows.filter { it.second.size == EXPECTED_DIM }
+            val buffer = ByteBuffer.allocate(valid.size * EXPECTED_DIM)
+            valid.forEach { buffer.put(it.second) }
+            return EmbeddingIndex(
+                lang = lang,
+                dim = EXPECTED_DIM,
+                embedModel = ModelAsset.EMBED_DINOV2S_INT8.fileName,
+                cardIds = Array(valid.size) { valid[it].first },
+                vectors = buffer,
+            )
+        }
 
         /**
          * Loads the index of the installed pack of [lang], or returns `null` when that language has

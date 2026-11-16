@@ -68,7 +68,7 @@ jobs:
         working-directory: pipeline
         env:
           TCGSCAN_REPO: ${{ github.repository }}
-        run: python -m tcgscan_pipeline build --langs fr,ja --out ../dist
+        run: python -m tcgscan_pipeline build --langs fr,ja --en-image-fallback --jp-extra-images --fr-extra-images --out ../dist
 
       # Saved even when the build fails so a rerun resumes from the partial cache.
       - name: Save embedding and image caches

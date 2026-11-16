@@ -168,5 +168,35 @@ data class ScanDetectionEntity(
     @ColumnInfo(name = "candidates_json") val candidatesJson: String = "[]",
     /** Score of the leading candidate, `null` on the OCR-only path which has no visual score (FR-3). */
     @ColumnInfo(name = "score") val score: Float?,
+    /**
+     * int8 embedding of the warped card (`EmbeddingIndex.quantize`, 384 bytes), `null` when none
+     * could be computed or for a row written before schema 2. Becomes a [LearnedEmbedding] when the
+     * user validates the detection.
+     */
+    @ColumnInfo(name = "embedding") val embedding: ByteArray? = null,
+    @ColumnInfo(name = "created_at") val createdAt: Long,
+)
+
+/**
+ * An extra visual reference learned on the device: the embedding of a scan the user validated as
+ * `(lang, cardId)`. The matcher searches these vectors next to the pack's (FR-3 stays the
+ * fallback), so a card without a usable pack image — 70 % of the Japanese ones — can still be
+ * recognised after its first validated scan.
+ *
+ * [lang] is the pack language the card was filed under, so a physical English card filed under its
+ * French id lands in `"fr"`. No foreign key to the sessions: a reference outlives the session and
+ * its photo. Not part of the JSON backup (derived data, rebuilt by scanning).
+ */
+@Entity(
+    tableName = "learned_embeddings",
+    indices = [Index(value = ["lang", "card_id"])],
+)
+data class LearnedEmbedding(
+    @PrimaryKey(autoGenerate = true)
+    @ColumnInfo(name = "id") val id: Long = 0,
+    @ColumnInfo(name = "lang") val lang: String,
+    @ColumnInfo(name = "card_id") val cardId: String,
+    /** int8 vector, `EmbeddingIndex.EXPECTED_DIM` bytes, same quantisation as the pack's. */
+    @ColumnInfo(name = "vector") val vector: ByteArray,
     @ColumnInfo(name = "created_at") val createdAt: Long,
 )
