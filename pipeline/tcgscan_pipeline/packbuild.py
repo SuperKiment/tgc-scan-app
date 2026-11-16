@@ -48,6 +48,7 @@ from .embed import (
 from .embed_cache import EmbeddingCache
 from .images import ImageCache
 from .limitless import LIMITLESS_LANG, LimitlessSource
+from .pokepedia import POKEPEDIA_LANG, PokepediaSource
 from .ptcgio import PTCGIO_LANG, PtcgioSource
 from .tcgdex import TcgdexClient, TcgdexError
 
@@ -172,6 +173,7 @@ class _Stats:
     own_image: int = 0
     limitless_image: int = 0
     ptcgio_image: int = 0
+    pokepedia_image: int = 0
     fallback_image: int = 0
     no_image: int = 0
     tokens: int = 0
@@ -220,6 +222,7 @@ def build_pack(
     en_image_fallback: bool = False,
     jp_extra_images: bool = False,
     fr_extra_images: bool = False,
+    fr_pokepedia_images: bool = False,
     keep_db: bool = False,
     client: TcgdexClient | None = None,
     embedder: Embedder | None = None,
@@ -240,6 +243,9 @@ def build_pack(
         fr_extra_images: for a ``fr`` card still without a visual after the other-language
             fallback, use the pokemontcg.io one (off by default, optional: its failures never fail
             the build); such rows are tagged ``has_embed = 2``, the visual being an EN image.
+        fr_pokepedia_images: for a ``fr`` card TCGdex has no image for, use the Poképédia scan of
+            the FR print, tried before the other-language fallback (off by default, optional: its
+            failures never fail the build); such rows are tagged ``has_embed = 1``.
         keep_db: leave the uncompressed ``pack-<lang>.db`` next to the archive, for a local install
             with ``adb push``. It is deleted by default so the output directory holds only the
             publishable artefacts.
@@ -284,6 +290,7 @@ def build_pack(
             en_image_fallback=en_image_fallback,
             jp_extra_images=jp_extra_images,
             fr_extra_images=fr_extra_images,
+            fr_pokepedia_images=fr_pokepedia_images,
             keep_db=keep_db,
             client=client,
             embedder=embedder,
@@ -305,6 +312,7 @@ def _build_into(
     en_image_fallback: bool,
     jp_extra_images: bool,
     fr_extra_images: bool,
+    fr_pokepedia_images: bool,
     keep_db: bool,
     client: TcgdexClient | None,
     embedder: Embedder | None,
@@ -334,6 +342,11 @@ def _build_into(
             if fr_extra_images and lang == PTCGIO_LANG
             else None
         )
+        pokepedia = (
+            stack.enter_context(PokepediaSource())
+            if fr_pokepedia_images and lang == POKEPEDIA_LANG
+            else None
+        )
 
         with contextlib.closing(sqlite3.connect(db_path, isolation_level=None)) as conn:
             # Autocommit plus explicit transactions: one per set, so the long embedding loop never
@@ -352,6 +365,7 @@ def _build_into(
                 resolver=resolver,
                 limitless=limitless,
                 ptcgio=ptcgio,
+                pokepedia=pokepedia,
                 max_sets=max_sets,
             )
             _write_meta(conn, lang, model.model_id, stats.cards)
@@ -362,15 +376,20 @@ def _build_into(
 
         vectors.commit()
         log.info(
-            "%s: %d sets, %d cards, %d vectors (%d own image, %d Limitless, %d other-language "
-            "fallback, %d pokemontcg.io, %d reused), "
+            "%s: %d sets, %d cards, %d vectors (%d own image, %d Limitless, %d Poképédia, "
+            "%d other-language fallback, %d pokemontcg.io, %d reused), "
             "%d cards without a visual, %d OCR tokens",
             lang,
             stats.sets,
             stats.cards,
-            stats.own_image + stats.limitless_image + stats.fallback_image + stats.ptcgio_image,
+            stats.own_image
+            + stats.limitless_image
+            + stats.pokepedia_image
+            + stats.fallback_image
+            + stats.ptcgio_image,
             stats.own_image,
             stats.limitless_image,
+            stats.pokepedia_image,
             stats.fallback_image,
             stats.ptcgio_image,
             stats.reused,
@@ -412,6 +431,7 @@ def _fill(
     resolver: FallbackImageResolver | None,
     limitless: LimitlessSource | None,
     ptcgio: PtcgioSource | None,
+    pokepedia: PokepediaSource | None,
     max_sets: int | None,
 ) -> _Stats:
     """Crawl, embed and insert every set of ``lang``, one transaction per set."""
@@ -439,6 +459,8 @@ def _fill(
                 fallback_resolver=resolver,
                 limitless=limitless,
                 ptcgio=ptcgio,
+                pokepedia=pokepedia,
+                set_row=set_row,
             )
             has_embed = HAS_EMBED_NONE if result is None else result.has_embed
             card_rows.append(
@@ -463,6 +485,8 @@ def _fill(
                     stats.fallback_image += 1
                 elif result.from_limitless:
                     stats.limitless_image += 1
+                elif result.from_pokepedia:
+                    stats.pokepedia_image += 1
                 else:
                     stats.own_image += 1
             token_rows.extend((card.card_id, token) for token in ocr_tokens(card, set_row))
@@ -682,6 +706,13 @@ def _main(argv: list[str] | None = None) -> int:
         "the rows it produces are tagged has_embed=1",
     )
     parser.add_argument(
+        "--fr-pokepedia-images",
+        action="store_true",
+        help="for a fr card TCGdex has no image for, use the Poképédia scan of the FR print, tried "
+        "before the other-language fallback (off by default); the rows it produces are tagged "
+        "has_embed=1",
+    )
+    parser.add_argument(
         "--fr-extra-images",
         action="store_true",
         help="for a fr card still without a visual, use the pokemontcg.io one (off by default); "
@@ -704,6 +735,7 @@ def _main(argv: list[str] | None = None) -> int:
             en_image_fallback=args.en_image_fallback,
             jp_extra_images=args.jp_extra_images,
             fr_extra_images=args.fr_extra_images,
+            fr_pokepedia_images=args.fr_pokepedia_images,
             keep_db=args.keep_db,
         )
     # ValueError included: an empty --lang or a negative --max-sets is an operator mistake, and a

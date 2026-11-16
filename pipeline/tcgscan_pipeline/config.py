@@ -163,6 +163,75 @@ PTCGIO_MAX_RUN_SECONDS = 1800.0
 ``build``). About 800 cards are looked up at ~0.5 s each, so 30 min is several times the need; once
 spent, the source switches itself off and the cards left stay without a visual."""
 
+# --- Poképédia, optional extra source of FR own-print visuals (docs/pack-format.md §4.11) ----------
+
+POKEPEDIA_API_URL = "https://www.pokepedia.fr/api.php"
+"""MediaWiki API of Poképédia; the card-file listing is read through it, ~60 requests per run."""
+
+POKEPEDIA_EXTENSION_OVERRIDES: dict[str, str] = {
+    # Series prefix or wording that differs from the TCGdex name.
+    "dp4": "Diamant & Perle Duels au sommet",
+    "hgss4": "HS Triomphe",
+    "pop7": "POP Series 7",
+    # Promos: the TCGdex set is named after the promo series, the wiki after its code.
+    "basep": "Promo Wizards",
+    "mep": "Promo ME",
+    "svp": "Promo SV",
+    # Basic Energy cards.
+    "mee": "Méga-Évolution Énergie de base",
+    "sve": "Écarlate et Violet Énergie de base",
+    # McDonald's: the FR 2018/2019 collections are the « (France) » ones; 2022/2023 are « Combat
+    # Express ».
+    "2018sm-fr": "Collection McDonald's 2018 (France)",
+    "2019sm-fr": "Collection McDonald's 2019 (France)",
+    "2022swsh": "Combat Express (2022)",
+    "2023sv": "Combat Express (2023)",
+    # Subsets printed in the main set's numbering (TG01.., GG01.., SV001..).
+    "swsh9tg": "Épée et Bouclier Stars Étincelantes",
+    "swsh10tg": "Épée et Bouclier Astres Radieux",
+    "swsh11tg": "Épée et Bouclier Origine Perdue",
+    "swsh12tg": "Épée et Bouclier Tempête Argentée",
+    "swsh12.5gg": "Zénith Suprême",
+    "swsh4.5sv": "Destinées Radieuses",
+    "sma": "Destinées Occultes",
+    "exu": "EX Forces Cachées",
+    # Trainer kits: the wiki names them « Kit du Dresseur <Pokémon> » under the series prefix.
+    "tk-bw-e": "Noir & Blanc Kit du Dresseur Minotaupe",
+    "tk-bw-z": "Noir & Blanc Kit du Dresseur Zoroark",
+    "tk-dp-l": "Diamant & Perle Kit Dresseur Lucario",
+    "tk-dp-m": "Diamant & Perle Kit Dresseur Manaphy",
+    "tk-ex-m": "EX Kit Dresseur 2 Négapi",
+    "tk-ex-p": "EX Kit Dresseur 2 Posipi",
+    "tk-sm-l": "Soleil et Lune Kit du Dresseur Lougaroc",
+    "tk-sm-r": "Soleil et Lune Kit du Dresseur Raichu d'Alola",
+    "tk-xy-p": "XY Kit du Dresseur Pikachu Catcheur",
+}
+"""TCGdex FR set id -> Poképédia extension name (the ``<Extension>`` of ``Carte_<Extension>_<n>.png``),
+for the sets the automatic name match does not find. Any other set is matched on its name, accents,
+case and punctuation ignored, exactly or as the unique extension ending with it (the wiki prefixes
+the series: « Noir & Blanc Nobles Victoires »). Each entry was checked by comparing the Pokémon of
+the wiki article with the TCGdex card name. Sets with no extension on the wiki (Celebrations
+Classic Collection, 30th Anniversary Classic Collection, the alternate-art cards) are absent: they keep the other sources."""
+
+POKEPEDIA_USER_AGENT = "tcg-scan-app pack pipeline (open-source card catalogue builder, low rate)"
+
+POKEPEDIA_MIN_REQUEST_INTERVAL_S = 1.0
+"""Minimum delay between two Poképédia requests (listing page or image): a volunteer-run wiki."""
+
+POKEPEDIA_MAX_RETRIES = 4
+"""Attempts per Poképédia request; the source is optional, so an outage must cost seconds, not
+minutes, of a build."""
+
+POKEPEDIA_MAX_RUN_SECONDS = 9000.0
+"""Wall-clock budget of one Poképédia source, counted from its creation (the fr pack build in
+``build``). Once spent, the source switches itself off: the cards left stay on the other sources and
+the files already cached are reused by the next run. 150 min covers the ~3 000 candidate cards at
+one request per second and keeps a full build well under the 360 min CI job timeout."""
+
+POKEPEDIA_THUMB_WIDTH = 400
+"""Width in pixels of the MediaWiki thumbnail downloaded instead of the ~750 kB, 736 px original
+(the model squashes to 224 px anyway); the original is the fallback when the thumbnail fails."""
+
 # --- Embedding model (docs/models.md §1, docs/pack-format.md §3) ------------------------------
 
 EMBED_MODEL_ASSET = "embed_dinov2s_int8.onnx"
@@ -214,8 +283,9 @@ CACHE_DIR = PIPELINE_ROOT / ".cache"
 """Cross-run cache root; safe to delete, gitignored, cached by the CI workflow."""
 
 IMAGE_CACHE_DIR = CACHE_DIR / "images"
-"""Downloaded card visuals: ``<lang>/<card_id>.webp``, plus ``ja-limitless/<card_id>.png`` and
-``en-ptcgio/<card_id>.png`` for the optional Limitless and pokemontcg.io sources."""
+"""Downloaded card visuals: ``<lang>/<card_id>.webp``, plus ``ja-limitless/<card_id>.png``,
+``en-ptcgio/<card_id>.png`` and ``fr-pokepedia/<card_id>.png`` for the optional Limitless,
+pokemontcg.io and Poképédia sources."""
 
 EMBED_CACHE_DB = CACHE_DIR / "embeddings.sqlite"
 """Embedding cache keyed by ``(card_id, lang, image_sha256, model_sha256)``."""
