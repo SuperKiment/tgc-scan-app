@@ -19,6 +19,34 @@ The UI is in French. Distribution is **GitHub Releases only** (no Play Store, no
 > own `owner/repo`, otherwise the app downloads the packs of the upstream repository. The pack pipeline
 > reads the same value from the `TCGSCAN_REPO` environment variable.
 
+## Install
+
+For Android users who just want the app (no build needed). Requires **Android 8.0 or newer**.
+
+1. On your phone, open the [releases page](https://github.com/SuperKiment/tgc-scan-app/releases) and
+   pick the newest app release (tags `v1.0.0`, `v1.1.0`, …).
+   Releases named `packs-<date>` hold language packs, not the app: the app downloads them itself.
+2. Download the APK that matches your CPU. There is no universal APK:
+   - `app-arm64-v8a-release.apk`: almost every phone since about 2017. Try this one first.
+   - `app-armeabi-v7a-release.apk`: old 32-bit phones only.
+3. Open the downloaded file. When Android asks, allow your browser or file manager to install unknown
+   apps (Settings > Apps > Special access > Install unknown apps), then install.
+4. Play Protect may warn about an unknown developer: choose "Install anyway".
+
+> [!WARNING]
+> Installing the wrong APK makes the app stop at start. With a computer, you can check the CPU with
+> `adb shell getprop ro.product.cpu.abi`, and install with `adb install -r app-arm64-v8a-release.apk`.
+
+**First launch.** Onboarding offers to download the French and/or Japanese language pack (internet is
+needed once: about 7 MB for FR, 4 MB for JA). After that everything works offline. The camera
+permission is requested at the first scan. Packs are managed in Settings > « Packs de langues »
+(Installer / Mettre à jour / Supprimer).
+
+**Updating.** Install the newer APK over the old one; your data is kept. Release APKs are signed with
+the project's release key, so a debug build (built from source) and a release APK cannot update each
+other. In that case, first export your collection (Settings > « Sauvegarde et restauration » > export
+JSON), uninstall the app, install the other build, then import the JSON again.
+
 ## Requirements
 
 - **JDK 21** (the only JDK this project is configured against; Java/Kotlin target is 11).
