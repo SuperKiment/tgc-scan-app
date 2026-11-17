@@ -158,10 +158,12 @@ PTCGIO_MAX_RETRIES = 4
 """Attempts per pokemontcg.io request; the source is optional, so an outage must cost seconds, not
 minutes, of a build."""
 
-PTCGIO_MAX_RUN_SECONDS = 1800.0
+PTCGIO_MAX_RUN_SECONDS = 9000.0
 """Wall-clock budget of one pokemontcg.io source, counted from its creation (the fr pack build in
-``build``). About 800 cards are looked up at ~0.5 s each, so 30 min is several times the need; once
-spent, the source switches itself off and the cards left stay without a visual."""
+``build``), not from its own requests. The fr build also downloads TCGdex and Poképédia images in
+that window (~45 min), so a 30 min cap switched the source off before the late sets; 150 min, like
+Limitless and Poképédia, stays under the 360 min job timeout. Once spent, the source switches itself
+off and the cards left stay without a visual."""
 
 # --- Poképédia, optional extra source of FR own-print visuals (docs/pack-format.md §4.11) ----------
 

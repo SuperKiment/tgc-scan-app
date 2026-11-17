@@ -225,7 +225,7 @@ Base URL `https://api.tcgdex.net/v2`, one language at a time (`fr`, `ja`).
     cached as `pipeline/.cache/images/en-ptcgio/<card_id>.png`. The vector is tagged
     `has_embed = 2`: the image is an EN print of the same card. Politeness: ≥ 0.25 s between two
     requests, a generic User-Agent, no redirect followed; an image that does not decode is never
-    cached, and the source switches itself off after 3 failed requests in a row or 30 minutes of run
+    cached, and the source switches itself off after 3 failed requests in a row or 150 minutes of run
     time. The source is **optional**: an unmapped set, a card the data does not list or any network
     or parse failure only leaves the card without a visual (`has_embed = 0`); it never fails the
     build nor counts toward the 2 % guard. The pack format is unchanged and no image byte enters a
