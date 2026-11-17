@@ -43,7 +43,8 @@ jobs:
           java-version: "21"
           cache: gradle
 
-      - uses: android-actions/setup-android@v3
+      # The ubuntu-latest image ships the Android SDK (ANDROID_HOME set); setup-android@v3 failed on
+      # its interactive licence prompt, and Gradle installs any missing platform on its own.
 
       - name: Fetch ONNX models
         run: bash tools/fetch_models.sh
