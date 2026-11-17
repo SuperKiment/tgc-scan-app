@@ -105,7 +105,7 @@ one bundled in its assets; such a pack must not be used for visual matching.
 | value | meaning | may be pre-checked after a scan? |
 |---|---|---|
 | `0` | no visual reference (no TCGdex image) — OCR-only card (FR-3) | **never** |
-| `1` | embedding computed from the image of this very card, in this language: the TCGdex image or, for a `ja` card TCGdex has none for, the Limitless TCG image (`--jp-extra-images`, §4.9, default off) | yes, if the confidence policy agrees |
+| `1` | embedding computed from the image of this very card, in this language: the TCGdex image or, for a card TCGdex has none for, the Limitless TCG image (`ja`, `--jp-extra-images`, §4.9, default off) or the Poképédia scan of the French print (`fr`, `--fr-pokepedia-images`, §4.11, default off) | yes, if the confidence policy agrees |
 | `2` | embedding computed from the image of the same card in another language: the same card id in another TCGdex language (`en`, `de`, `it`, `es`, `pt`, first one with an image; `--en-image-fallback`, D15/FR-4, default off) or, for a `fr` card no TCGdex language has an image for, the EN image of pokemontcg.io (`--fr-extra-images`, §4.10, default off) | **never** (down-weighted) |
 
 A row has an `embeddings` entry if and only if `has_embed != 0`.
@@ -225,11 +225,38 @@ Base URL `https://api.tcgdex.net/v2`, one language at a time (`fr`, `ja`).
     cached as `pipeline/.cache/images/en-ptcgio/<card_id>.png`. The vector is tagged
     `has_embed = 2`: the image is an EN print of the same card. Politeness: ≥ 0.25 s between two
     requests, a generic User-Agent, no redirect followed; an image that does not decode is never
-    cached, and the source switches itself off after 3 failed requests in a row or 30 minutes of run
+    cached, and the source switches itself off after 3 failed requests in a row or 150 minutes of run
     time. The source is **optional**: an unmapped set, a card the data does not list or any network
     or parse failure only leaves the card without a visual (`has_embed = 0`); it never fails the
     build nor counts toward the 2 % guard. The pack format is unchanged and no image byte enters a
     pack.
+11. Optional extra source of `fr` visuals, Poképédia (`--fr-pokepedia-images`, default off). The
+    French Pokémon wiki carries a scan of the **French** print of each card
+    (`Fichier:Carte_<Extension>_<number>.png`), so the vector is tagged `has_embed = 1` and the
+    source is tried right after the card's own TCGdex image: before the other-language fallback
+    (§4.4) and pokemontcg.io (§4.10). It therefore applies both to the `fr` cards with no visual
+    at all and to those that would get a borrowed `has_embed = 2` one. The pipeline lists every
+    card file once through the MediaWiki API
+    (`https://www.pokepedia.fr/api.php?action=query&list=allimages&aiprefix=Carte_`, 500 files per
+    request, ~60 requests, memoised) and indexes them as `extension -> number key -> URL` (a plain
+    file wins over a variant such as `_(Pack_Récompense_Play!_Pokémon)`). A TCGdex set maps to an
+    extension through `config.POKEPEDIA_EXTENSION_OVERRIDES` (set id → extension: Trainer
+    Galleries, Coffre Étincelant, McDonald's « (France) » and « Combat Express », trainer kits,
+    promos, basic Energies…) or, failing that, by its name, accents, case and punctuation ignored:
+    exactly, else as the **unique** extension ending with it (TCGdex omits the series prefix of
+    « Noir & Blanc Nobles Victoires »). An ambiguous or absent name leaves the set without a
+    visual. The card is then matched on its `localId` with the digit padding ignored (`SV004` =
+    `SV4`, same rule as §4.10). The image is downloaded as a 400 px MediaWiki thumbnail (the
+    original, ~750 kB, is the fallback) and cached as
+    `pipeline/.cache/images/fr-pokepedia/<card_id>.png`; a file already cached is reused without
+    any request, so a run cut short resumes where it stopped. Politeness: ≥ 1 s between two
+    requests, a generic User-Agent, no redirect followed, images only from `www.pokepedia.fr`
+    under `/images/`; an image that does not decode is never cached, and the source switches
+    itself off after 3 failed requests in a row or 150 minutes of run time. The source is
+    **optional**: an unmapped set (Celebrations Classic Collection, 30th Anniversary Classic
+    Collection…), a card the wiki does not list or any network or parse failure only leaves the
+    card on the next source; it never fails the build nor counts toward the 2 % guard. The pack
+    format is unchanged and no image byte enters a pack.
 
 ---
 

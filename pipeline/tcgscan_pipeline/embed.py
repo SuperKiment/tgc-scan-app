@@ -12,13 +12,15 @@ Unchanged cards are never re-embedded: :class:`~tcgscan_pipeline.embed_cache.Emb
 every vector by ``(card_id, lang, image_sha256, model_sha256)`` (FR-21).
 
 Cards without a visual in their own language yield no vector at all (``has_embed = 0``, FR-3),
-unless an optional source is enabled, both **off by default**: the other-language fallback of
+unless an optional source is enabled, all **off by default**: the other-language fallback of
 D15/FR-4 (``config.FALLBACK_IMAGE_LANGS``) tags the rows it produces ``has_embed = 2`` so the app
 can refuse to pre-check them, while the Limitless
 TCG source of JA visuals (``--jp-extra-images``, :mod:`tcgscan_pipeline.limitless`) is the card's
-own JP print and so keeps ``has_embed = 1``. The pokemontcg.io source of FR visuals
-(``--fr-extra-images``, :mod:`tcgscan_pipeline.ptcgio`) is an EN image of the same card, tried after
-the other-language fallback, hence ``has_embed = 2`` too.
+own JP print and so keeps ``has_embed = 1``, and so does the Poképédia source of FR visuals
+(``--fr-pokepedia-images``, :mod:`tcgscan_pipeline.pokepedia`), a scan of the FR print tried right
+after TCGdex's own image. The pokemontcg.io source of FR visuals (``--fr-extra-images``,
+:mod:`tcgscan_pipeline.ptcgio`) is an EN image of the same card, tried after the other-language
+fallback, hence ``has_embed = 2``.
 
 Dry runs:
 
@@ -26,6 +28,7 @@ Dry runs:
     python -m tcgscan_pipeline.embed --lang fr --set base1 --max-cards 2
     python -m tcgscan_pipeline.embed --lang ja --set SM1M --max-cards 3 --jp-extra-images
     python -m tcgscan_pipeline.embed --lang fr --set sm7.5 --max-cards 3 --fr-extra-images
+    python -m tcgscan_pipeline.embed --lang fr --set 2016xy --max-cards 3 --fr-pokepedia-images
 """
 
 from __future__ import annotations
@@ -45,10 +48,11 @@ import numpy as np
 import onnxruntime as ort
 
 from . import config
-from .catalog import TCGDEX_ASSET_PREFIX, CardRow, crawl_set
+from .catalog import TCGDEX_ASSET_PREFIX, CardRow, SetRow, crawl_set
 from .embed_cache import EmbeddingCache
 from .images import ImageCache
 from .limitless import LIMITLESS_LANG, LimitlessSource
+from .pokepedia import POKEPEDIA_LANG, PokepediaSource
 from .ptcgio import PTCGIO_LANG, PtcgioSource
 from .tcgdex import TcgdexClient, TcgdexError, TcgdexNotFound
 
@@ -290,6 +294,8 @@ class EmbedResult:
     from_ptcgio: bool = False
     """True when the visual is the pokemontcg.io one of a FR card no TCGdex language has an image
     for."""
+    from_pokepedia: bool = False
+    """True when the visual is the Poképédia one of a FR card TCGdex has no image of its own for."""
 
 
 class FallbackImageResolver:
@@ -381,6 +387,8 @@ def embed_card(
     fallback_resolver: FallbackImageResolver | None = None,
     limitless: LimitlessSource | None = None,
     ptcgio: PtcgioSource | None = None,
+    pokepedia: PokepediaSource | None = None,
+    set_row: SetRow | None = None,
 ) -> EmbedResult | None:
     """Embed one crawled card, reusing the caches, or return ``None`` when it has no visual.
 
@@ -400,11 +408,16 @@ def embed_card(
         ptcgio: pokemontcg.io source, used only for ``fr`` cards still without a visual after the
             other-language fallback. ``None`` — the default — means it is off. Its visual is an EN
             image, hence ``has_embed = 2``; it never raises.
+        pokepedia: Poképédia source, used only for ``fr`` cards TCGdex has no image for and tried
+            before the fallback. ``None`` — the default — means it is off. Its visual is a scan of
+            the card's own FR print, hence ``has_embed = 1``; it never raises.
+        set_row: the card's set, which the Poképédia lookup needs (its name); ``None`` leaves
+            Poképédia without a visual for the card.
 
     Returns:
-        The ``EmbedResult`` with ``has_embed = 1`` for the card's own visual (TCGdex or Limitless)
-        and ``2`` for an other-language one (TCGdex fallback or pokemontcg.io), or ``None`` when no
-        visual could be obtained.
+        The ``EmbedResult`` with ``has_embed = 1`` for the card's own visual (TCGdex, Limitless or
+        Poképédia) and ``2`` for an other-language one (TCGdex fallback or pokemontcg.io), or
+        ``None`` when no visual could be obtained.
 
     Raises:
         TcgdexUnavailable: a download or a fallback set lookup failed every attempt.
@@ -426,6 +439,25 @@ def embed_card(
                 # The source is optional: a bad file (e.g. cached by an earlier run) must neither
                 # abort the build nor stay in the cache; the card goes on to the next source.
                 log.warning("%s: Limitless visual unusable (%s); removed", card.card_id, exc)
+                visual.unlink(missing_ok=True)
+    if path is None and pokepedia is not None and lang == POKEPEDIA_LANG:
+        visual = pokepedia.fetch(card, set_row, images)
+        if visual is not None:
+            try:
+                return _embed_path(
+                    card,
+                    lang,
+                    visual,
+                    HAS_EMBED_OWN_IMAGE,
+                    False,
+                    from_pokepedia=True,
+                    embedder=embedder,
+                    cache=cache,
+                )
+            except EmbedError as exc:
+                # Same rule as Limitless: an optional source never aborts the build nor keeps a bad
+                # file in the cache.
+                log.warning("%s: Poképédia visual unusable (%s); removed", card.card_id, exc)
                 visual.unlink(missing_ok=True)
     if path is None and fallback_resolver is not None:
         path = _fallback_visual(card, lang, images, fallback_resolver)
@@ -480,6 +512,7 @@ def _embed_path(
     from_limitless: bool,
     *,
     from_ptcgio: bool = False,
+    from_pokepedia: bool = False,
     embedder: Embedder,
     cache: EmbeddingCache | None,
 ) -> EmbedResult:
@@ -496,6 +529,7 @@ def _embed_path(
                 reused=True,
                 from_limitless=from_limitless,
                 from_ptcgio=from_ptcgio,
+                from_pokepedia=from_pokepedia,
             )
 
     vec = embedder.embed_int8(path)
@@ -509,6 +543,7 @@ def _embed_path(
         reused=False,
         from_limitless=from_limitless,
         from_ptcgio=from_ptcgio,
+        from_pokepedia=from_pokepedia,
     )
 
 
@@ -555,6 +590,13 @@ def _main(argv: list[str] | None = None) -> int:
         help="for a fr card still without a visual, use the pokemontcg.io one (off by default); "
         "the rows it produces are tagged has_embed=2",
     )
+    parser.add_argument(
+        "--fr-pokepedia-images",
+        action="store_true",
+        help="for a fr card TCGdex has no image for, use the Poképédia scan of the FR print, tried "
+        "before the other-language fallback (off by default); the rows it produces are tagged "
+        "has_embed=1",
+    )
     args = parser.parse_args(argv)
 
     if (args.image is None) == (args.lang is None and args.set is None):
@@ -576,6 +618,7 @@ def _main(argv: list[str] | None = None) -> int:
             en_fallback=args.en_image_fallback,
             jp_extra_images=args.jp_extra_images,
             fr_extra_images=args.fr_extra_images,
+            fr_pokepedia_images=args.fr_pokepedia_images,
         )
     except (EmbedError, TcgdexError) as exc:
         log.error("%s", exc)
@@ -602,6 +645,7 @@ def _embed_set(
     en_fallback: bool,
     jp_extra_images: bool,
     fr_extra_images: bool,
+    fr_pokepedia_images: bool,
 ) -> int:
     """Embed one crawled set through both caches and print one line per card."""
     crawled = crawl_set(lang, set_id)
@@ -609,9 +653,11 @@ def _embed_set(
     resolver = FallbackImageResolver() if en_fallback else None
     limitless = LimitlessSource() if jp_extra_images else None
     ptcgio = PtcgioSource() if fr_extra_images else None
+    pokepedia = PokepediaSource() if fr_pokepedia_images else None
     embedded = 0
     from_limitless = 0
     from_ptcgio = 0
+    from_pokepedia = 0
     try:
         with EmbeddingCache(model_sha256=embedder.model_sha256) as cache, ImageCache() as images:
             for card in cards:
@@ -624,6 +670,8 @@ def _embed_set(
                     fallback_resolver=resolver,
                     limitless=limitless,
                     ptcgio=ptcgio,
+                    pokepedia=pokepedia,
+                    set_row=crawled.set_row,
                 )
                 if result is None:
                     print(f"{card.card_id}\thas_embed={HAS_EMBED_NONE}\tno-image")
@@ -631,18 +679,23 @@ def _embed_set(
                 embedded += 1
                 from_limitless += int(result.from_limitless)
                 from_ptcgio += int(result.from_ptcgio)
-                source = (
-                    "limitless"
-                    if result.from_limitless
-                    else "pokemontcg.io" if result.from_ptcgio else "tcgdex"
-                )
+                from_pokepedia += int(result.from_pokepedia)
+                if result.from_limitless:
+                    source = "limitless"
+                elif result.from_pokepedia:
+                    source = "pokepedia"
+                elif result.from_ptcgio:
+                    source = "pokemontcg.io"
+                else:
+                    source = "tcgdex"
                 print(
                     f"{result.card_id}\thas_embed={result.has_embed}\t{source}\t"
                     f"{'reused' if result.reused else 'computed'}\t{len(result.vec)} B"
                 )
             print(
                 f"{lang}/{set_id}: {embedded}/{len(cards)} cards embedded "
-                f"({from_limitless} Limitless, {from_ptcgio} pokemontcg.io); {cache.summary()}"
+                f"({from_limitless} Limitless, {from_pokepedia} Poképédia, "
+                f"{from_ptcgio} pokemontcg.io); {cache.summary()}"
             )
     finally:
         if resolver is not None:
@@ -651,6 +704,8 @@ def _embed_set(
             limitless.close()
         if ptcgio is not None:
             ptcgio.close()
+        if pokepedia is not None:
+            pokepedia.close()
     return 0
 
 

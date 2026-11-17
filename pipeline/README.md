@@ -35,7 +35,7 @@ python3 -m tcgscan_pipeline build --langs fr,ja --out ../dist
 | command | what it does |
 |---|---|
 | `python3 -m tcgscan_pipeline.tcgdex --probe fr` | smoke-probes the API and prints the series count of a language |
-| `python3 -m tcgscan_pipeline build [--langs fr,ja] [--out dist] [--max-sets N] [--en-image-fallback] [--jp-extra-images] [--fr-extra-images] [--previous-manifest FILE]` | full run: crawl → images → embed → pack → manifest → guard |
+| `python3 -m tcgscan_pipeline build [--langs fr,ja] [--out dist] [--max-sets N] [--en-image-fallback] [--jp-extra-images] [--fr-extra-images] [--fr-pokepedia-images] [--previous-manifest FILE]` | full run: crawl → images → embed → pack → manifest → guard |
 
 The build is **all-or-nothing** (FR-22): either every requested pack *and* `manifest.json` land in
 the output directory, or it is left empty and the process exits non-zero, so the previously
@@ -61,6 +61,7 @@ whole chain without pulling ~20 000 cards.
 | `catalog.py` | series/set/card crawl, `tcgp` exclusion, canonical `name_norm` |
 | `images.py` | `{image}/low.webp` download into the image cache |
 | `limitless.py` | optional (`--jp-extra-images`) Limitless TCG source of `ja` visuals for cards TCGdex has no image for: one set page per set, 1 s between requests, never raises, vectors tagged `has_embed = 1` |
+| `pokepedia.py` | optional (`--fr-pokepedia-images`) Poképédia source of `fr` visuals: scans of the French print, tried right after TCGdex's own image; one MediaWiki listing of every card file per run, 1 s between requests, never raises, vectors tagged `has_embed = 1` |
 | `ptcgio.py` | optional (`--fr-extra-images`) pokemontcg.io source of `fr` visuals for cards no TCGdex language has an image for: one `pokemon-tcg-data` card list per set, 0.25 s between requests, never raises, vectors tagged `has_embed = 2` |
 | `embed.py`, `embed_cache.py` | DINOv2-small int8 embedding and its cross-run SQLite cache |
 | `packbuild.py` | the gzipped SQLite pack |
@@ -82,6 +83,7 @@ cheap (FR-21):
 | `.cache/images/<lang>/<card_id>.webp` | downloaded card visuals | file presence |
 | `.cache/images/ja-limitless/<card_id>.png` | Limitless visuals (`--jp-extra-images`) | file presence |
 | `.cache/images/en-ptcgio/<card_id>.png` | pokemontcg.io visuals (`--fr-extra-images`) | file presence |
+| `.cache/images/fr-pokepedia/<card_id>.png` | Poképédia visuals (`--fr-pokepedia-images`) | file presence |
 | `.cache/embeddings.sqlite` | int8 embedding blobs | `(card_id, lang, image_sha256, model_sha256)` |
 
 `--jp-extra-images` (off by default, on in the CI workflow) adds the Limitless TCG source for `ja`
@@ -93,7 +95,14 @@ cards still without a visual after `--en-image-fallback`: only the sets of
 `config.PTCGIO_SET_ALIASES`, tagged `has_embed = 2`, with the same never-fails behaviour. See
 `../docs/pack-format.md` §4.10.
 
-Deleting either only costs time. No image byte ever enters a pack.
+`--fr-pokepedia-images` (off by default, on in the CI workflow) adds the Poképédia source for `fr`
+cards TCGdex has no own image for, tried before the other-language fallback and pokemontcg.io, and
+tagged `has_embed = 1` (the image is the French print). TCGdex sets map to Poképédia extensions by
+name, with `config.POKEPEDIA_EXTENSION_OVERRIDES` for the ones whose name differs. A first run
+downloads ~3 000 images at 1 s each (about 50 min, capped at 150 min); the cache makes the next
+runs free, with the same never-fails behaviour. See `../docs/pack-format.md` §4.11.
+
+Deleting any of them only costs time. No image byte ever enters a pack.
 
 ## Environment
 

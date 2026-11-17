@@ -2,7 +2,7 @@
 
     python -m tcgscan_pipeline build [--langs fr,ja] [--out dist] [--max-sets N]
                                      [--en-image-fallback] [--jp-extra-images] [--fr-extra-images]
-                                     [--previous-manifest FILE]
+                                     [--fr-pokepedia-images] [--previous-manifest FILE]
 
 ``build`` runs crawl -> images -> embed -> pack (:func:`tcgscan_pipeline.packbuild.build_pack`, once
 per language), then writes ``manifest.json`` and passes the release gate
@@ -101,6 +101,13 @@ def _parser() -> argparse.ArgumentParser:
         "optional: its failures never fail the build); the rows it produces are tagged has_embed=2",
     )
     build.add_argument(
+        "--fr-pokepedia-images",
+        action="store_true",
+        help="for a fr card TCGdex has no image for, use the Poképédia scan of the FR print, tried "
+        "before the other-language fallback (off by default, optional: its failures never fail the "
+        "build); the rows it produces are tagged has_embed=1",
+    )
+    build.add_argument(
         "--previous-manifest",
         type=Path,
         default=None,
@@ -142,6 +149,7 @@ def _run_build(args: argparse.Namespace) -> int:
             en_image_fallback=args.en_image_fallback,
             jp_extra_images=args.jp_extra_images,
             fr_extra_images=args.fr_extra_images,
+            fr_pokepedia_images=args.fr_pokepedia_images,
             previous_manifest=args.previous_manifest,
         )
     except GuardError as exc:
@@ -173,6 +181,7 @@ def _build(
     en_image_fallback: bool,
     jp_extra_images: bool,
     fr_extra_images: bool,
+    fr_pokepedia_images: bool,
     previous_manifest: Path | None,
 ) -> None:
     """Build every pack, pass the gate, then publish into ``out_dir``; raise on any failure."""
@@ -195,6 +204,7 @@ def _build(
             en_image_fallback=en_image_fallback,
             jp_extra_images=jp_extra_images,
             fr_extra_images=fr_extra_images,
+            fr_pokepedia_images=fr_pokepedia_images,
         )
         new_manifest = manifest.build_manifest(built)
         guard.check(previous, new_manifest, unavailable=unavailable)
@@ -232,6 +242,7 @@ def _build_packs(
     en_image_fallback: bool,
     jp_extra_images: bool,
     fr_extra_images: bool,
+    fr_pokepedia_images: bool,
 ) -> tuple[dict[str, PackBuild], list[str]]:
     """Build the pack of each language into ``staging``.
 
@@ -258,6 +269,7 @@ def _build_packs(
                     en_image_fallback=en_image_fallback,
                     jp_extra_images=jp_extra_images,
                     fr_extra_images=fr_extra_images,
+                    fr_pokepedia_images=fr_pokepedia_images,
                     client=client,
                     embedder=embedder,
                     images=images,
